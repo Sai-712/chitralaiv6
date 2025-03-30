@@ -5,7 +5,7 @@ const Footer = () => {
     <footer className="bg-white sticky top-0 z-50 shadow-2xl transition-all duration-300 rounded-b-2xl">
       <div className="mx-auto max-w-7xl px-6 py-6 md:flex md:items-center md:justify-between lg:px-8">
         <div className="flex flex-col space-y-2 md:order-1 md:mt-0">
-          <p className="text-center md:text-left text-xs leading-5 text-gray-900">&copy; 2025 Chitral.ai. All rights reserved.</p>
+          <p className="text-center md:text-left text-xs leading-5 text-gray-900">&copy; 2025 Chitralai. All rights reserved.</p>
           <div className="flex flex-col md:flex-row md:space-x-4 items-center md:items-start">
             <a href="mailto:contact@chitralai.in" className="flex items-center text-sm text-gray-700 hover:text-gray-900">
               <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
