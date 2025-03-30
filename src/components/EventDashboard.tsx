@@ -556,9 +556,9 @@ const EventDashboard = (props: EventDashboardProps) => {
                 {/* Create Event Modal */}
                 {isModalOpen && (
                     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-                        <div className="bg-white rounded-lg shadow-md border border-blue-400 mx-auto w-full max-w-sm sm:max-w-md overflow-auto max-h-[90vh]">
-                            <div className="flex justify-between items-center p-4 border-b border-gray-200">
-                                <h2 className="text-lg sm:text-xl font-bold text-blue-700">Create New Event</h2>
+                        <div className="bg-white rounded-lg shadow-md border border-blue-400 mx-auto w-full max-w-xs sm:max-w-sm overflow-auto max-h-[80vh]">
+                            <div className="flex justify-between items-center p-3 border-b border-gray-200">
+                                <h2 className="text-base font-bold text-blue-700">Create New Event</h2>
                                 <button
                                     onClick={() => {
                                         setIsModalOpen(false);
@@ -566,12 +566,12 @@ const EventDashboard = (props: EventDashboardProps) => {
                                     }}
                                     className="text-black hover:text-gray-700"
                                 >
-                                    <X className="w-5 h-5" />
+                                    <X className="w-4 h-4" />
                                 </button>
                             </div>
-                            <form onSubmit={handleCreateEvent} className="p-4 sm:p-6 space-y-3">
+                            <form onSubmit={handleCreateEvent} className="p-3 space-y-2">
                                 {coverImagePreview && (
-                                    <div className="relative w-full h-32 sm:h-40 mb-3">
+                                    <div className="relative w-full h-24 mb-2">
                                         <img
                                             src={coverImagePreview}
                                             alt="Cover preview"
@@ -583,14 +583,14 @@ const EventDashboard = (props: EventDashboardProps) => {
                                                 setCoverImagePreview(null);
                                                 setNewEvent(prev => ({ ...prev, coverImage: undefined }));
                                             }}
-                                            className="absolute top-2 right-2 p-1 bg-blue-500 text-white rounded-full hover:bg-blue-600"
+                                            className="absolute top-1 right-1 p-1 bg-blue-500 text-white rounded-full hover:bg-blue-600"
                                         >
-                                            <X className="w-3 h-3 sm:w-4 sm:h-4" />
+                                            <X className="w-3 h-3" />
                                         </button>
                                     </div>
                                 )}
-                                <div className="mb-3">
-                                    <label className="block text-blue-900 text-sm mb-1" htmlFor="coverImage">
+                                <div className="mb-2">
+                                    <label className="block text-blue-900 text-xs mb-1" htmlFor="coverImage">
                                         Cover Image <span className="text-red-500">*</span>
                                     </label>
                                     <input
@@ -598,12 +598,12 @@ const EventDashboard = (props: EventDashboardProps) => {
                                         id="coverImage"
                                         accept="image/*"
                                         onChange={handleCoverImageChange}
-                                        className="w-full text-sm text-blue-900 file:mr-3 file:py-1.5 file:px-3 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                                        className="w-full text-xs text-blue-900 file:mr-2 file:py-1 file:px-2 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
                                         required
                                     />
                                 </div>
                                 <div>
-                                    <label className="block text-blue-700 text-sm mb-1" htmlFor="eventName">
+                                    <label className="block text-blue-700 text-xs mb-1" htmlFor="eventName">
                                         Event Name <span className="text-red-500">*</span>
                                     </label>
                                     <input
@@ -611,12 +611,12 @@ const EventDashboard = (props: EventDashboardProps) => {
                                         id="eventName"
                                         value={newEvent.name}
                                         onChange={(e) => setNewEvent({ ...newEvent, name: e.target.value })}
-                                        className="w-full border border-blue-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary"
+                                        className="w-full border border-blue-300 rounded-lg px-2 py-1 text-xs focus:outline-none focus:border-primary"
                                         required
                                     />
                                 </div>
                                 <div>
-                                    <label className="block text-blue-700 text-sm mb-1" htmlFor="eventDate">
+                                    <label className="block text-blue-700 text-xs mb-1" htmlFor="eventDate">
                                         Event Date <span className="text-red-500">*</span>
                                     </label>
                                     <input
@@ -624,7 +624,7 @@ const EventDashboard = (props: EventDashboardProps) => {
                                         id="eventDate"
                                         value={newEvent.date}
                                         onChange={(e) => setNewEvent({ ...newEvent, date: e.target.value })}
-                                        className="w-full border border-blue-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary"
+                                        className="w-full border border-blue-300 rounded-lg px-2 py-1 text-xs focus:outline-none focus:border-primary"
                                         required
                                     />
                                 </div>
@@ -632,7 +632,7 @@ const EventDashboard = (props: EventDashboardProps) => {
                                 <button
                                     type="submit"
                                     disabled={isLoading}
-                                    className="w-full bg-blue-300 text-black py-2 px-4 rounded-lg hover:bg-secondary transition-colors duration-200 disabled:opacity-50 mt-4 text-sm sm:text-base"
+                                    className="w-full bg-blue-300 text-black py-1.5 px-3 rounded-lg hover:bg-secondary transition-colors duration-200 disabled:opacity-50 mt-3 text-xs"
                                 >
                                     {isLoading ? 'Creating Event...' : 'Create Event'}
                                 </button>
