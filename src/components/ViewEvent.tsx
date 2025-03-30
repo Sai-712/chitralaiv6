@@ -12,6 +12,7 @@ import {
 } from '@aws-sdk/client-rekognition';
 import { Link, useNavigate } from 'react-router-dom';
 import { getEventById } from '../config/eventStorage';
+import { updateEventData } from '../config/eventStorage';
 
 interface ViewEventProps {
   eventId: string;
@@ -118,6 +119,8 @@ const ViewEvent: React.FC<ViewEventProps> = ({ eventId, selectedEvent, onEventSe
 
   const [faceGroups, setFaceGroups] = useState<FaceGroups>({});
   const [allFaceRecords, setAllFaceRecords] = useState<FaceRecordWithImage[]>([]);
+  const [processingFaces, setProcessingFaces] = useState(false);
+  const [facesLoaded, setFacesLoaded] = useState(false);
 
   const qrCodeRef = useRef<SVGSVGElement>(null);
 
@@ -318,6 +321,7 @@ const ViewEvent: React.FC<ViewEventProps> = ({ eventId, selectedEvent, onEventSe
 
   const fetchEventImages = async () => {
     try {
+      setLoading(true);
       const eventToUse = selectedEvent || eventId;
       const prefixes = [`events/shared/${eventToUse}/images`];
       let allImages: EventImage[] = [];
@@ -350,17 +354,25 @@ const ViewEvent: React.FC<ViewEventProps> = ({ eventId, selectedEvent, onEventSe
         // Deduplicate images based on the filename after the timestamp code
         const deduplicatedImages = deduplicateImages(allImages);
         setImages(deduplicatedImages);
-        await detectAndGroupFaces(deduplicatedImages);
         setError(null);
+        
+        // Mark loading as complete so UI can render
+        setLoading(false);
+        
+        // Process faces in the background
+        setProcessingFaces(true);
+        setTimeout(() => {
+          processFaces(deduplicatedImages);
+        }, 100);
       } else if (fetchError) {
         throw fetchError;
       } else {
         setError('No images found for this event.');
+        setLoading(false);
       }
     } catch (error: any) {
       console.error('Error fetching event images:', error);
       setError(error.message);
-    } finally {
       setLoading(false);
     }
   };
@@ -386,6 +398,18 @@ const ViewEvent: React.FC<ViewEventProps> = ({ eventId, selectedEvent, onEventSe
     });
     
     return Array.from(fileNameMap.values());
+  };
+
+  // Separate function to process faces after images are displayed
+  const processFaces = async (imagesToProcess: EventImage[]) => {
+    try {
+      await detectAndGroupFaces(imagesToProcess);
+      setFacesLoaded(true);
+    } catch (error) {
+      console.error('Error processing faces:', error);
+    } finally {
+      setProcessingFaces(false);
+    }
   };
 
   const handleFileChange = useCallback(
@@ -431,6 +455,21 @@ const ViewEvent: React.FC<ViewEventProps> = ({ eventId, selectedEvent, onEventSe
             await upload.done();
           })
         );
+
+        // Update the photoCount in DynamoDB
+        try {
+          // Get current event data
+          const currentEvent = await getEventById(eventId);
+          if (currentEvent) {
+            // Update the photoCount by adding the number of newly uploaded images
+            await updateEventData(eventId, userEmail, {
+              photoCount: (currentEvent.photoCount || 0) + files.length
+            });
+            console.log(`Updated photoCount for event ${eventId} to ${(currentEvent.photoCount || 0) + files.length}`);
+          }
+        } catch (error) {
+          console.error('Error updating photoCount:', error);
+        }
 
         await fetchEventImages();
       } catch (error: any) {
@@ -558,27 +597,46 @@ const ViewEvent: React.FC<ViewEventProps> = ({ eventId, selectedEvent, onEventSe
               Our AI is{' '}
               92% accurate
               and still learning, yet your data is safe.
+              {processingFaces && !facesLoaded && (
+                <span className="ml-2 inline-flex items-center">
+                  <span className="animate-pulse">Processing faces...</span>
+                </span>
+              )}
             </p>
           </div>
 
           <div className="flex overflow-x-auto pb-4 space-x-4 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent">
-            {Object.entries(faceGroups).map(([groupId, faceRecs]) => {
-              const faceRec = faceRecs[0];
-              if (!faceRec.image) return null;
-
-              return (
-                <div key={groupId}>
-                  <FaceThumbnail
-                    faceRec={faceRec}
-                    onClick={() => {
-                      // When clicked, show all images that contain this face
-                      const relatedImages = faceRecs.map((rec) => rec.image);
-                      setImages(relatedImages);
-                    }}
+            {/* Show loading state for face thumbnails */}
+            {processingFaces && !facesLoaded ? (
+              <>
+                {[...Array(5)].map((_, i) => (
+                  <div 
+                    key={`skeleton-${i}`} 
+                    className="flex-none w-24 h-24 rounded-full bg-gray-200 animate-pulse"
                   />
-                </div>
-              );
-            })}
+                ))}
+              </>
+            ) : (
+              <>
+                {Object.entries(faceGroups).map(([groupId, faceRecs]) => {
+                  const faceRec = faceRecs[0];
+                  if (!faceRec.image) return null;
+
+                  return (
+                    <div key={groupId}>
+                      <FaceThumbnail
+                        faceRec={faceRec}
+                        onClick={() => {
+                          // When clicked, show all images that contain this face
+                          const relatedImages = faceRecs.map((rec) => rec.image);
+                          setImages(relatedImages);
+                        }}
+                      />
+                    </div>
+                  );
+                })}
+              </>
+            )}
             {/* 'All' thumbnail to reset */}
             <div
               className="flex-none w-24 h-24 rounded-full border-2 border-dashed border-gray-300 flex items-center justify-center text-gray-400 cursor-pointer hover:border-gray-400 transition-colors duration-300"
