@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useContext } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Camera, Image, Video, Users, Plus, X, Trash2, Copy } from 'lucide-react';
+import { Camera, Image, Video, Users, Plus, X, Trash2, Copy, RefreshCw } from 'lucide-react';
 import { 
     storeEventData, 
     getEventStatistics, 
@@ -105,6 +105,7 @@ const EventDashboard = (props: EventDashboardProps) => {
     const [events, setEvents] = useState<EventData[]>([]);
     const [showAllEvents, setShowAllEvents] = useState(true);
     const [copiedEventId, setCopiedEventId] = useState<string | null>(null);
+    const [refreshInterval, setRefreshInterval] = useState<NodeJS.Timeout | null>(null);
 
     useEffect(() => {
         loadEvents();
@@ -151,6 +152,46 @@ const EventDashboard = (props: EventDashboardProps) => {
         }
     }, [navigate, setUserRole]);
 
+    // Add effect to update statistics periodically and when component is visible
+    useEffect(() => {
+        // Initial load
+        loadEventStatistics();
+        
+        // Set up refresh interval when component mounts
+        const interval = setInterval(() => {
+            if (document.visibilityState === 'visible') {
+                loadEventStatistics();
+            }
+        }, 2000); // Refresh every 2 seconds when visible for more responsive updates
+        
+        setRefreshInterval(interval);
+        
+        // Add visibility change listener to refresh data when coming back to page
+        const handleVisibilityChange = () => {
+            if (document.visibilityState === 'visible') {
+                console.log('Tab became visible, refreshing statistics...');
+                loadEventStatistics();
+            }
+        };
+        
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+        
+        // Force refresh on focus
+        const handleFocus = () => {
+            console.log('Window focused, refreshing statistics...');
+            loadEventStatistics();
+        };
+        
+        window.addEventListener('focus', handleFocus);
+        
+        // Clean up
+        return () => {
+            clearInterval(interval); // Clear using the local interval variable
+            document.removeEventListener('visibilitychange', handleVisibilityChange);
+            window.removeEventListener('focus', handleFocus);
+        };
+    }, []);  // Empty dependency array - only run on mount and unmount
+
     const loadEvents = async () => {
         try {
             const userEmail = localStorage.getItem('userEmail');
@@ -158,8 +199,6 @@ const EventDashboard = (props: EventDashboardProps) => {
                 console.error('User email not found');
                 return;
             }
-            
-            console.log('Loading events for user:', userEmail);
             
             // Get events where user is listed as userEmail (backward compatibility)
             const userEvents = await getUserEvents(userEmail);
@@ -188,9 +227,32 @@ const EventDashboard = (props: EventDashboardProps) => {
             });
             
             if (Array.isArray(allEvents)) {
-                setEvents(allEvents);
-                // Update statistics after loading events
-                await loadEventStatistics();
+                // Calculate statistics directly from loaded events
+                const newStats = {
+                    eventCount: allEvents.length,
+                    photoCount: allEvents.reduce((sum, event) => sum + (event.photoCount || 0), 0),
+                    videoCount: allEvents.reduce((sum, event) => sum + (event.videoCount || 0), 0),
+                    guestCount: allEvents.reduce((sum, event) => sum + (event.guestCount || 0), 0)
+                };
+                
+                // Check if stats actually changed before updating state to prevent unnecessary renders
+                const statsChanged = 
+                    newStats.eventCount !== stats.eventCount ||
+                    newStats.photoCount !== stats.photoCount ||
+                    newStats.videoCount !== stats.videoCount ||
+                    newStats.guestCount !== stats.guestCount;
+                    
+                if (statsChanged) {
+                    console.log('Statistics updated:', newStats);
+                    setStats(newStats);
+                }
+                
+                // Check if events have changed before updating state
+                const eventsChanged = allEvents.length !== events.length;
+                if (eventsChanged) {
+                    setEvents(allEvents);
+                    console.log('Events updated:', allEvents.length);
+                }
             } else {
                 console.error('Invalid events data received');
             }
@@ -199,17 +261,13 @@ const EventDashboard = (props: EventDashboardProps) => {
         }
     };
 
-    useEffect(() => {
-        loadEventStatistics();
-    }, []);
-
     const loadEventStatistics = async () => {
         try {
             const userEmail = localStorage.getItem('userEmail');
             if (userEmail) {
                 console.log('Loading statistics for user:', userEmail);
-                const statistics = await getEventStatistics(userEmail);
-                setStats(statistics);
+                // Load events which will automatically update statistics
+                await loadEvents();
             }
         } catch (error) {
             console.error('Error loading event statistics:', error);
