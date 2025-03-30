@@ -4,7 +4,7 @@ import { S3_BUCKET_NAME, s3Client } from '../config/aws';
 import { Upload as UploadIcon, X, Download, ArrowLeft, Copy, Loader2, Camera } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { getUserEvents } from '../config/eventStorage';
+import { getUserEvents, getEventById, updateEventData } from '../config/eventStorage';
 
 const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
 const BATCH_SIZE = 20; // Number of images to process in each batch
@@ -252,6 +252,25 @@ const UploadImage = () => {
       setUploadedUrls(urls);
       localStorage.setItem('currentEventId', selectedEvent);
       setEventId(selectedEvent);
+      
+      // Update the photoCount in DynamoDB
+      const userEmail = localStorage.getItem('userEmail');
+      if (userEmail) {
+        try {
+          // Get current event data
+          const currentEvent = await getEventById(selectedEvent);
+          if (currentEvent) {
+            // Update the photoCount by adding the number of newly uploaded images
+            await updateEventData(selectedEvent, userEmail, {
+              photoCount: (currentEvent.photoCount || 0) + images.length
+            });
+            console.log(`Updated photoCount for event ${selectedEvent} to ${(currentEvent.photoCount || 0) + images.length}`);
+          }
+        } catch (error) {
+          console.error('Error updating photoCount:', error);
+        }
+      }
+      
       setUploadSuccess(true);
       setShowQRModal(true);
     } catch (error) {
