@@ -21,7 +21,7 @@ const faqs = [
   {
     question: 'How do I share my photos with friends and family?',
     answer:
-      'Pixigo makes sharing simple. You can create shareable links for individual photos or entire albums, set permissions for who can view or edit, and even collaborate on shared albums with family members.',
+      'Chitralai makes sharing simple. You can create shareable links for individual photos or entire albums, set permissions for who can view or edit, and even collaborate on shared albums with family members.',
   },
   {
     question: 'What happens if I exceed my storage limit?',
