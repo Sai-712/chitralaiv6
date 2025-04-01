@@ -6,7 +6,7 @@ import { QRCodeSVG } from 'qrcode.react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { getUserEvents, getEventById, updateEventData } from '../config/eventStorage';
 
-const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
+const MAX_FILE_SIZE = 200 * 1024 * 1024; // 200MB
 const BATCH_SIZE = 20; // Number of images to process in each batch
 const IMAGES_PER_PAGE = 50; // Number of images to show per page
 
@@ -124,7 +124,7 @@ const UploadImage = () => {
       });
 
       if (validFiles.length !== files.length) {
-        alert('Some files were skipped because they were selfies or exceeded the 50MB size limit.');
+        alert('Some files were skipped because they were selfies or exceeded the 200MB size limit.');
       }
 
       // Process images in batches to prevent memory issues
@@ -196,7 +196,7 @@ const UploadImage = () => {
       const uploadInstance = new Upload({
         client: s3Client,
         params: uploadParams,
-        partSize: 50 * 1024 * 1024,
+        partSize: 200 * 1024 * 1024, // Increased part size to 200MB for better handling of large files
         leavePartsOnError: false,
       });
 
@@ -230,7 +230,7 @@ const UploadImage = () => {
           throw new Error(`${image.name} is not a valid image file`);
         }
         if (image.size > MAX_FILE_SIZE) {
-          throw new Error(`${image.name} exceeds the 50MB size limit`);
+          throw new Error(`${image.name} exceeds the 200MB size limit`);
         }
         const fileName = `${Date.now()}-${image.name}`;
         try {
@@ -439,7 +439,7 @@ const UploadImage = () => {
                 >
                   <div className="flex flex-col items-center">
                     <img src="/upload-placeholder.svg" alt="Upload" className="w-64 h-48 object-contain" />
-                    <p className="text-xs text-blue-500 mt-1">PNG, JPG, GIF up to 50MB</p>
+                    <p className="text-xs text-blue-500 mt-1">PNG, JPG, GIF up to 200MB</p>
                   </div>
                   <input
                     id="file-upload"
