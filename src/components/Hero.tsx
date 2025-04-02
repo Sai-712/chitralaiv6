@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { Camera, Users, Shield, Zap, Clock, Image, Share2, ChevronDown, ChevronUp, CheckCircle, Lock } from 'lucide-react';
 import { storeUserCredentials, getUserByEmail } from '../config/dynamodb';
 import { jwtDecode as jwt_decode } from 'jwt-decode';
+import AnnouncementPopup from './AnnouncementPopup';
 
 interface HeroProps {
   onShowSignIn: () => void;
@@ -199,6 +200,7 @@ const Hero: React.FC<HeroProps> = ({ onShowSignIn }) => {
 
   return (
     <div className="bg-white">
+      <AnnouncementPopup />
       {/* Hero Section */}
       <div className="relative isolate overflow-hidden bg-gradient-to-b from-blue-50/30 to-blue-50/80 pt-20 sm:pt-22 md:pt-24 lg:pt-28">
         {/* Background Pattern */}
