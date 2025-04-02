@@ -219,7 +219,6 @@ const UploadImage = () => {
     setIsUploading(true);
     setUploadSuccess(false);
     
-    // Add state to track current upload progress
     let uploadedCount = 0;
     const totalCount = images.length;
     setUploadProgress({ current: 0, total: totalCount });
@@ -236,7 +235,6 @@ const UploadImage = () => {
         try {
           const imageUrl = await uploadToS3(image, fileName);
           
-          // Update progress after each successful upload
           uploadedCount++;
           setUploadProgress({ current: uploadedCount, total: totalCount });
           
@@ -257,10 +255,8 @@ const UploadImage = () => {
       const userEmail = localStorage.getItem('userEmail');
       if (userEmail) {
         try {
-          // Get current event data
           const currentEvent = await getEventById(selectedEvent);
           if (currentEvent) {
-            // Update the photoCount by adding the number of newly uploaded images
             await updateEventData(selectedEvent, userEmail, {
               photoCount: (currentEvent.photoCount || 0) + images.length
             });
@@ -273,14 +269,19 @@ const UploadImage = () => {
       
       setUploadSuccess(true);
       setShowQRModal(true);
+      // Clear the selected images and their previews after successful upload
+      setImages([]);
+      // Clean up preview URLs
+      Object.values(imagePreviews).forEach(url => URL.revokeObjectURL(url));
+      setImagePreviews({});
     } catch (error) {
       console.error('Error uploading images:', error);
       alert(error instanceof Error ? error.message : 'Failed to upload images. Please try again.');
     } finally {
       setIsUploading(false);
-      setUploadProgress(null); // Reset progress when done
+      setUploadProgress(null);
     }
-  }, [images, selectedEvent, uploadToS3]);
+  }, [images, selectedEvent, uploadToS3, imagePreviews]);
 
   const handleDownload = useCallback(async (url: string) => {
     try {
@@ -439,7 +440,7 @@ const UploadImage = () => {
                 >
                   <div className="flex flex-col items-center">
                     <img src="/upload-placeholder.svg" alt="Upload" className="w-64 h-48 object-contain" />
-                    <p className="text-xs text-blue-500 mt-1">PNG, JPG, GIF up to 200MB</p>
+                    <p className="text-xs text-blue-500 mt-1">PNG, JPEG, JPG (200MB max) <br /> 50 images/batch for large files</p>
                   </div>
                   <input
                     id="file-upload"
@@ -529,15 +530,21 @@ const UploadImage = () => {
               <button
                 onClick={handleUpload}
                 disabled={isUploading || images.length === 0}
-                className={`w-full py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-500 hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors duration-200 ${isUploading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                className={`w-full py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white ${
+                  isUploading || images.length === 0 
+                    ? 'bg-gray-400 cursor-not-allowed opacity-50' 
+                    : 'bg-blue-500 hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500'
+                } transition-colors duration-200`}
               >
                 {isUploading ? (
                   <span className="flex items-center justify-center">
                     <Loader2 className="mr-2 h-5 w-5 animate-spin" />
                     Uploading {uploadProgress?.current}/{uploadProgress?.total}...
                   </span>
+                ) : images.length === 0 ? (
+                  'Select images to upload'
                 ) : (
-                  'Upload Images'
+                  `Upload ${images.length} Image${images.length > 1 ? 's' : ''}`
                 )}
               </button>
               {isUploading && uploadProgress && (
@@ -614,48 +621,23 @@ const UploadImage = () => {
                       </button>
                     </div>
                     <div className="w-full">
-                      <div className="flex items-center gap-2 p-2 bg-gray-50 rounded">
+                      <div className="flex items-center justify-between gap-2 p-2 bg-gray-50 rounded">
                         <input
                           type="text"
                           readOnly
                           value={`${window.location.origin}/attendee-dashboard?eventId=${selectedEvent}`}
-                          className="w-full bg-transparent text-sm overflow-hidden text-ellipsis"
+                          className="flex-1 bg-transparent text-sm overflow-hidden text-ellipsis outline-none"
                         />
-                        <button onClick={handleCopyLink} className="px-3 py-1 bg-turquoise text-blue-300 rounded hover:bg-aquamarine transition-colors flex-shrink-0">
+                        <button 
+                          onClick={handleCopyLink} 
+                          className="px-3 py-1.5 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors flex items-center gap-1 flex-shrink-0"
+                        >
+                          <Copy className="w-4 h-4" />
                           Copy
                         </button>
                       </div>
                       {showCopySuccess && <p className="text-sm text-green-600 mt-1 text-center">Link copied to clipboard!</p>}
                     </div>
-                    <div className="flex gap-2 w-full">
-                      <button
-                        onClick={handleDownloadQR}
-                        className="flex-1 bg-black text-white py-2 px-4 rounded-lg hover:bg-blue-700 transition-colors duration-200 flex items-center justify-center text-sm"
-                      >
-                        <Download className="w-4 h-4 mr-2" />
-                        Download QR
-                      </button>
-                      <button
-                        onClick={() => {
-                          navigator.clipboard.writeText(`${window.location.origin}/attendee-dashboard?eventId=${selectedEvent}`);
-                          setShowCopySuccess(true);
-                          setTimeout(() => setShowCopySuccess(false), 2000);
-                        }}
-                        className="flex-1 bg-black text-white py-2 px-4 rounded-lg hover:bg-blue-700 transition-colors duration-200 flex items-center justify-center text-sm"
-                      >
-                        <Copy className="w-4 h-4 mr-2" />
-                        {showCopySuccess ? 'Copied!' : 'Share Link'}
-                      </button>
-                    </div>
-                    {/*<button
-                      onClick={() => {
-                        setShowQRModal(false);
-                        navigate(`/attendee-dashboard/${selectedEvent}`, { state: { eventId: selectedEvent } });
-                      }}
-                      className="w-full bg-blue-600 text-black py-2 px-4 rounded-lg hover:bg-blue-200 transition-colors duration-200 flex items-center justify-center"
-                    >
-                      Continue to Attendee Dashboard
-                    </button>*/}
                   </div>
                 </div>
               </div>
