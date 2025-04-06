@@ -330,7 +330,7 @@ const Hero: React.FC<HeroProps> = ({ onShowSignIn }) => {
               initial={{ opacity: 0, x: 50 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ duration: 0.8 }}
-              className="mx-auto lg:ml-8 xl:ml-12 mt-6 sm:mt-8 md:mt-10 lg:mt-0 relative w-[180px] sm:w-[210px] md:w-[240px] lg:w-[270px] xl:w-[300px] h-[400px] sm:h-[450px] md:h-[500px] lg:h-[540px]"
+              className="mx-auto lg:ml-8 xl:ml-12 mt-6 sm:mt-8 md:mt-10 lg:mt-0 relative w-[180px] sm:w-[210px] md:w-[240px] lg:w-[270px] xl:w-[300px] h-[360px] sm:h-[450px] md:h-[500px] lg:h-[540px]"
             >
               {/* Device Frame */}
               <div className="absolute inset-0 rounded-[2.5rem] border-[10px] sm:border-[12px] border-gray-900 bg-gray-900 shadow-xl overflow-hidden">
@@ -391,59 +391,7 @@ const Hero: React.FC<HeroProps> = ({ onShowSignIn }) => {
         </div>
       </div>
 
-      {/* Features Section 
-      <div className="py-24 sm:py-32">
-        <div className="mx-auto max-w-7xl px-6 lg:px-8">
-          <div className="mx-auto max-w-2xl lg:text-center">
-            <h2 className="text-base font-semibold leading-7 text-blue-600">Features</h2>
-            <p className="mt-2 text-3xl font-bold tracking-tight text-gray-900 sm:text-4xl">
-              Everything you need for event photo sharing
-            </p>
-          </div>
-          <div className="mx-auto mt-16 max-w-2xl sm:mt-20 lg:mt-24 lg:max-w-none">
-            <dl className="grid max-w-xl grid-cols-1 gap-x-8 gap-y-16 lg:max-w-none lg:grid-cols-4">
-              {features.map((feature, index) => (
-                <div key={index} className="flex flex-col">
-                  <dt className="flex items-center gap-x-3 text-base font-semibold leading-7 text-gray-900">
-                    {feature.icon}
-                    {feature.title}
-                  </dt>
-                  <dd className="mt-4 flex flex-auto flex-col text-base leading-7 text-gray-600">
-                    <p className="flex-auto">{feature.description}</p>
-                  </dd>
-                </div>
-              ))}
-            </dl>
-          </div>
-        </div>
-      </div>  */}
-
-      {/* Use Cases Section 
-      <div className="py-24 sm:py-32">
-        <div className="mx-auto max-w-7xl px-6 lg:px-8">
-          <div className="mx-auto max-w-2xl lg:text-center">
-            <h2 className="text-base font-semibold leading-7 text-blue-600">Use Cases</h2>
-            <p className="mt-2 text-3xl font-bold tracking-tight text-gray-900 sm:text-4xl">
-              Perfect for any event
-            </p>
-          </div>
-          <div className="mx-auto mt-16 max-w-2xl sm:mt-20 lg:mt-24 lg:max-w-none">
-            <dl className="grid max-w-xl grid-cols-1 gap-x-8 gap-y-16 lg:max-w-none lg:grid-cols-3">
-              {useCases.map((useCase, index) => (
-                <div key={index} className="flex flex-col items-center text-center">
-                  <dt className="mb-6">
-                    {useCase.icon}
-                  </dt>
-                  <dd className="flex flex-auto flex-col">
-                    <p className="text-xl font-semibold text-gray-900">{useCase.title}</p>
-                    <p className="mt-2 text-base text-gray-600">{useCase.description}</p>
-                  </dd>
-                </div>
-              ))}
-            </dl>
-          </div>
-        </div>
-      </div> */}
+      
     </div>
   );
 };
