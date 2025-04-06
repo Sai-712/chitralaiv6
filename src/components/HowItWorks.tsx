@@ -47,7 +47,7 @@ const HowItWorks = () => {
               className="flex flex-col items-center text-center"
             >
               <div className="relative">
-                <div className="mb-4 rounded-xl flex items-center justify-center bg-blue-100 p-2 sm:p-3 shadow-lg ring-1 ring-gray-900/10 w-32 h-32 sm:w-36 sm:h-36 md:w-40 md:h-40 lg:w-44 lg:h-44 mx-auto">
+                <div className="mb-4 rounded-xl flex items-center justify-center bg-blue-100 p-3 sm:p-4 shadow-lg ring-1 ring-gray-900/10 w-40 h-40 sm:w-44 sm:h-44 md:w-48 md:h-48 lg:w-52 lg:h-52 mx-auto">
                   <img
                     src={step.image}
                     alt={step.title}
@@ -55,7 +55,7 @@ const HowItWorks = () => {
                     loading="lazy"
                   />
                 </div>
-                <div className="absolute -left-3 -top-3 flex h-6 w-6 sm:h-7 sm:w-7 items-center justify-center rounded-full bg-blue-600 text-white text-sm shadow-md">
+                <div className="absolute -left-3 -top-3 flex h-7 w-7 sm:h-8 sm:w-8 items-center justify-center rounded-full bg-blue-600 text-white text-sm shadow-md">
                   {index + 1}
                 </div>
               </div>
