@@ -1,9 +1,20 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Sparkles, MessageSquare } from 'lucide-react';
 
 const AnnouncementPopup = () => {
-  const [isVisible, setIsVisible] = useState(true);
+  const [isVisible, setIsVisible] = useState(false);
+
+  useEffect(() => {
+    // Check if user is signed in by looking for email and token in localStorage
+    const userEmail = localStorage.getItem('userEmail');
+    const token = localStorage.getItem('googleToken');
+    
+    // Only show popup if user is not signed in
+    if (!userEmail || !token) {
+      setIsVisible(true);
+    }
+  }, []);
 
   return (
     <AnimatePresence>
