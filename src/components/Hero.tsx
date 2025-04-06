@@ -202,7 +202,7 @@ const Hero: React.FC<HeroProps> = ({ onShowSignIn }) => {
     <div className="bg-white">
       <AnnouncementPopup />
       {/* Hero Section */}
-      <div className="relative isolate overflow-hidden bg-gradient-to-b from-blue-50/30 to-blue-50/80 pt-20 sm:pt-22 md:pt-24 lg:pt-28">
+      <div className="relative isolate overflow-hidden bg-gradient-to-b from-blue-50/30 to-blue-50/80 pt-28 sm:pt-28 md:pt-28 lg:pt-28">
         {/* Background Pattern */}
         <div className="absolute inset-0 -z-10 opacity-10">
           <svg
