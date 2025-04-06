@@ -266,13 +266,26 @@ const AttendeeDashboard: React.FC<AttendeeDashboardProps> = ({ setShowSignInModa
   // Scroll to matched images section when success message is set
   useEffect(() => {
     if (successMessage && matchedImagesRef.current) {
-      matchedImagesRef.current.scrollIntoView({ behavior: 'smooth' });
-      
-      // Clear the success message after 5 seconds
+      // Only scroll for photo-related success messages
+      if (successMessage.includes('photos') || successMessage.includes('Found')) {
+        matchedImagesRef.current.scrollIntoView({ behavior: 'smooth' });
+        
+        // Clear photo-related success messages after 5 seconds
+        const timer = setTimeout(() => {
+          setSuccessMessage(null);
+        }, 5000);
+        
+        return () => clearTimeout(timer);
+      }
+    }
+  }, [successMessage]);
+
+  // Clear selfie update success message after 2 seconds
+  useEffect(() => {
+    if (successMessage === 'Your selfie has been updated successfully!') {
       const timer = setTimeout(() => {
         setSuccessMessage(null);
-      }, 5000);
-      
+      }, 2000);
       return () => clearTimeout(timer);
     }
   }, [successMessage]);
@@ -1137,6 +1150,19 @@ const AttendeeDashboard: React.FC<AttendeeDashboardProps> = ({ setShowSignInModa
     }
   };
 
+  // Add styles for animation
+  const fadeInOutStyles = `
+    @keyframes fadeInOut {
+      0% { opacity: 0; transform: translateY(-20px); }
+      15% { opacity: 1; transform: translateY(0); }
+      85% { opacity: 1; transform: translateY(0); }
+      100% { opacity: 0; transform: translateY(-20px); }
+    }
+    .animate-fade-in-out {
+      animation: fadeInOut 2s ease-in-out forwards;
+    }
+  `;
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
@@ -1152,6 +1178,7 @@ const AttendeeDashboard: React.FC<AttendeeDashboardProps> = ({ setShowSignInModa
 
   return (
     <div className="min-h-screen bg-gray-50 pt-20 pb-6 px-4 sm:px-6 lg:px-8">
+      <style>{fadeInOutStyles}</style>
       <div className="max-w-7xl mx-auto">
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold text-gray-900">Your Event Memories</h1>
@@ -1294,9 +1321,6 @@ const AttendeeDashboard: React.FC<AttendeeDashboardProps> = ({ setShowSignInModa
                 )}
               </div>
               <p className="text-xs sm:text-sm text-gray-600 text-center mb-3 sm:mb-5">Used for photo matching across events</p>
-              {successMessage && successMessage.includes('selfie') && (
-                <p className="text-green-600 text-xs sm:text-sm text-center mb-2">✓ Selfie updated successfully</p>
-              )}
               <button
                 onClick={handleUpdateSelfie}
                 disabled={!!processingStatus && processingStatus.includes('Updating your selfie')}
@@ -1435,15 +1459,6 @@ const AttendeeDashboard: React.FC<AttendeeDashboardProps> = ({ setShowSignInModa
               </select>
             </div>
           </div>
-          
-          {successMessage && (
-            <div className="bg-green-50 text-green-700 p-4 rounded-lg mb-6 flex items-center animate-pulse">
-              <div className="bg-green-100 rounded-full p-2 mr-3">
-                <span className="text-green-500">✓</span>
-              </div>
-              {successMessage}
-            </div>
-          )}
           
           {filteredImages.length > 0 ? (
             <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
@@ -1587,6 +1602,22 @@ const AttendeeDashboard: React.FC<AttendeeDashboardProps> = ({ setShowSignInModa
                   <p className="text-blue-600">{processingStatus}</p>
                 </div>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Success Message Popup */}
+      {successMessage && successMessage === 'Your selfie has been updated successfully!' && (
+        <div className="fixed left-0 right-0 top-16 sm:top-24 z-[1000] pointer-events-none">
+          <div className="container mx-auto px-4 max-w-md">
+            <div className="bg-green-50 text-green-700 p-4 rounded-lg shadow-lg flex items-center gap-3 animate-fade-in-out">
+              <div className="bg-green-100 rounded-full p-1.5 flex-shrink-0">
+                <svg className="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                </svg>
+              </div>
+              <span className="text-sm font-medium">{successMessage}</span>
             </div>
           </div>
         </div>
