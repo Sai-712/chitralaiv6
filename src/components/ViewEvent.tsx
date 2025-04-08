@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { ListObjectsV2Command } from '@aws-sdk/client-s3';
 import { Upload } from '@aws-sdk/lib-storage';
 import { s3Client, S3_BUCKET_NAME, rekognitionClient } from '../config/aws';
-import { Camera, X, ArrowLeft, Download, Upload as UploadIcon, Copy } from 'lucide-react';
+import { Camera, X, ArrowLeft, Download, Upload as UploadIcon, Copy, UserPlus } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import {
   IndexFacesCommand,
@@ -11,8 +11,7 @@ import {
   ListCollectionsCommand
 } from '@aws-sdk/client-rekognition';
 import { Link, useNavigate } from 'react-router-dom';
-import { getEventById } from '../config/eventStorage';
-import { updateEventData } from '../config/eventStorage';
+import { getEventById, updateEventData } from '../config/eventStorage';
 
 interface ViewEventProps {
   eventId: string;
@@ -116,6 +115,10 @@ const ViewEvent: React.FC<ViewEventProps> = ({ eventId, selectedEvent, onEventSe
   const [uploadProgress, setUploadProgress] = useState(0);
   const [showCopySuccess, setShowCopySuccess] = useState(false);
   const [showQRModal, setShowQRModal] = useState(false);
+  const [showAddAccessModal, setShowAddAccessModal] = useState(false);
+  const [emailInput, setEmailInput] = useState('');
+  const [emailAccessList, setEmailAccessList] = useState<string[]>([]);
+  const [isEventCreator, setIsEventCreator] = useState(false);
 
   const [faceGroups, setFaceGroups] = useState<FaceGroups>({});
   const [allFaceRecords, setAllFaceRecords] = useState<FaceRecordWithImage[]>([]);
@@ -319,6 +322,18 @@ const ViewEvent: React.FC<ViewEventProps> = ({ eventId, selectedEvent, onEventSe
     }
   }, [eventId, selectedEvent]);
 
+  useEffect(() => {
+    const checkEventCreator = async () => {
+      const event = await getEventById(eventId);
+      const userEmail = localStorage.getItem('userEmail');
+      if (event && userEmail) {
+        setIsEventCreator(event.organizerId === userEmail);
+        setEmailAccessList(event.emailAccess || []);
+      }
+    };
+    checkEventCreator();
+  }, [eventId]);
+
   const fetchEventImages = async () => {
     try {
       setLoading(true);
@@ -483,6 +498,46 @@ const ViewEvent: React.FC<ViewEventProps> = ({ eventId, selectedEvent, onEventSe
     [eventId]
   );
 
+  const handleAddEmail = async () => {
+    if (!emailInput || !emailInput.includes('@')) {
+      alert('Please enter a valid email address');
+      return;
+    }
+
+    const userEmail = localStorage.getItem('userEmail');
+    if (!userEmail) {
+      alert('User not authenticated');
+      return;
+    }
+
+    try {
+      const updatedEmailList = [...new Set([...emailAccessList, emailInput])];
+      await updateEventData(eventId, userEmail, { emailAccess: updatedEmailList });
+      setEmailAccessList(updatedEmailList);
+      setEmailInput('');
+    } catch (error) {
+      console.error('Error adding email access:', error);
+      alert('Failed to add email access');
+    }
+  };
+
+  const handleRemoveEmail = async (emailToRemove: string) => {
+    const userEmail = localStorage.getItem('userEmail');
+    if (!userEmail) {
+      alert('User not authenticated');
+      return;
+    }
+
+    try {
+      const updatedEmailList = emailAccessList.filter(email => email !== emailToRemove);
+      await updateEventData(eventId, userEmail, { emailAccess: updatedEmailList });
+      setEmailAccessList(updatedEmailList);
+    } catch (error) {
+      console.error('Error removing email access:', error);
+      alert('Failed to remove email access');
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-gray-50">
@@ -522,7 +577,7 @@ const ViewEvent: React.FC<ViewEventProps> = ({ eventId, selectedEvent, onEventSe
         </Link>
         
         {/* Button grid with consistent sizing */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 mb-6">
           <button
             onClick={() => setShowQRModal(true)}
             className="flex items-center justify-center bg-blue-200 text-black py-3 px-4 rounded-lg hover:bg-secondary transition-colors duration-200 h-12 w-full"
@@ -573,6 +628,16 @@ const ViewEvent: React.FC<ViewEventProps> = ({ eventId, selectedEvent, onEventSe
             <UploadIcon className="w-5 h-5 mr-2" />
             Upload
           </button>
+          
+          {isEventCreator && (
+            <button
+              onClick={() => setShowAddAccessModal(true)}
+              className="flex items-center justify-center bg-blue-200 text-black py-3 px-4 rounded-lg hover:bg-secondary transition-colors duration-200 h-12 w-full"
+            >
+              <UserPlus className="w-5 h-5 mr-2" />
+              Add Access
+            </button>
+          )}
         </div>
 
         {uploading && (
@@ -728,6 +793,58 @@ const ViewEvent: React.FC<ViewEventProps> = ({ eventId, selectedEvent, onEventSe
                 <Download className="w-6 h-6" />
                 
               </button>
+            </div>
+          </div>
+        )}
+
+        {/* Add Access Modal */}
+        {showAddAccessModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4" onClick={() => setShowAddAccessModal(false)}>
+            <div className="relative bg-white rounded-lg shadow-xl p-8 max-w-md w-full mx-auto" onClick={e => e.stopPropagation()}>
+              <button
+                className="absolute top-4 right-4 p-2 rounded-full bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors duration-200"
+                onClick={() => setShowAddAccessModal(false)}
+              >
+                <X className="w-6 h-6" />
+              </button>
+              <h3 className="text-xl font-semibold text-gray-900 mb-4">Manage Event Access</h3>
+              <div className="mb-4">
+                <div className="flex gap-2">
+                  <input
+                    type="email"
+                    value={emailInput}
+                    onChange={(e) => setEmailInput(e.target.value)}
+                    placeholder="Enter email address"
+                    className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                  <button
+                    onClick={handleAddEmail}
+                    className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors duration-200"
+                  >
+                    Add
+                  </button>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <h4 className="font-medium text-gray-700">Current Access List:</h4>
+                {emailAccessList.length === 0 ? (
+                  <p className="text-gray-500">No emails added yet</p>
+                ) : (
+                  <ul className="space-y-2">
+                    {emailAccessList.map((email) => (
+                      <li key={email} className="flex items-center justify-between bg-gray-50 p-2 rounded-lg">
+                        <span className="text-gray-700">{email}</span>
+                        <button
+                          onClick={() => handleRemoveEmail(email)}
+                          className="p-1 text-red-500 hover:text-red-700 transition-colors duration-200"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
             </div>
           </div>
         )}
