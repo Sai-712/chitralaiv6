@@ -601,13 +601,15 @@ const AttendeeDashboard: React.FC<AttendeeDashboardProps> = ({ setShowSignInModa
         throw new Error('No valid images found in this event.');
       }
       
-      // Compare faces in batches
-      const batchSize = 10;
+      // Compare faces in larger batches with parallel processing
+      const batchSize = 30; // Increased from 10 to 25
       const results: { url: string; similarity: number }[] = [];
+      let processedCount = 0;
       
       for (let i = 0; i < imageKeys.length; i += batchSize) {
         const batch = imageKeys.slice(i, i + batchSize);
-        setProcessingStatus(`Comparing with images... ${Math.min(i + batch.length, imageKeys.length)}/${imageKeys.length}`);
+        processedCount += batch.length;
+        setProcessingStatus(`Comparing with images... ${processedCount}/${imageKeys.length}`);
         
         const batchPromises = batch.map(async (key) => {
           try {
@@ -622,17 +624,39 @@ const AttendeeDashboard: React.FC<AttendeeDashboardProps> = ({ setShowSignInModa
               QualityFilter: "HIGH"
             });
             
-            const compareResponse = await rekognitionClient.send(compareCommand);
+            // Add timeout to prevent hanging
+            const compareResponse = await Promise.race([
+              rekognitionClient.send(compareCommand),
+              new Promise((_, reject) => 
+                setTimeout(() => reject(new Error('Face comparison timed out')), 30000)
+              )
+            ]) as { FaceMatches?: Array<{ Similarity?: number }> };
             
             if (compareResponse.FaceMatches && compareResponse.FaceMatches.length > 0) {
               const bestMatch = compareResponse.FaceMatches.reduce(
-                (prev, current) => (prev.Similarity || 0) > (current.Similarity || 0) ? prev : current
+                (prev: { Similarity?: number }, current: { Similarity?: number }) => 
+                  (prev.Similarity || 0) > (current.Similarity || 0) ? prev : current
               );
               
-              return { 
+              const result = { 
                 url: `https://${S3_BUCKET_NAME}.s3.amazonaws.com/${key}`, 
                 similarity: bestMatch.Similarity || 0 
               };
+              
+              // Update UI immediately when a match is found
+              if (result.similarity >= 70) {
+                const newMatchingImage: MatchingImage = {
+                  imageId: key.split('/').pop() || '',
+                  eventId: event.id,
+                  eventName: event.name,
+                  imageUrl: result.url,
+                  matchedDate: new Date().toISOString()
+                };
+                
+                setMatchingImages(prev => [...prev, newMatchingImage]);
+              }
+              
+              return result;
             }
             return null;
           } catch (error) {
@@ -641,15 +665,20 @@ const AttendeeDashboard: React.FC<AttendeeDashboardProps> = ({ setShowSignInModa
           }
         });
         
-        const batchResults = await Promise.all(batchPromises);
-        results.push(...batchResults.filter((result): result is { url: string; similarity: number } => 
-          result !== null && result.similarity >= 70
-        ));
-        
-        // Add a small delay between batches
-        if (i + batchSize < imageKeys.length) {
-          await new Promise(resolve => setTimeout(resolve, 1000));
-        }
+        // Use Promise.allSettled to continue even if some comparisons fail
+        const batchResults = await Promise.allSettled(batchPromises);
+        const successfulResults = batchResults
+          .filter((result): result is PromiseFulfilledResult<{ url: string; similarity: number }> => 
+            result.status === 'fulfilled' && 
+            result.value !== null && 
+            typeof result.value === 'object' &&
+            'url' in result.value &&
+            'similarity' in result.value &&
+            result.value.similarity >= 70
+          )
+          .map(result => result.value);
+          
+        results.push(...successfulResults);
       }
       
       // Sort matches by similarity
@@ -659,17 +688,6 @@ const AttendeeDashboard: React.FC<AttendeeDashboardProps> = ({ setShowSignInModa
         throw new Error('No matching faces found in the event images.');
       }
       
-      // Add matched images to the state
-      const newMatchingImages: MatchingImage[] = sortedMatches.map(match => ({
-        imageId: match.url.split('/').pop() || '',
-        eventId: event.id,
-        eventName: event.name,
-        imageUrl: match.url,
-        matchedDate: new Date().toISOString()
-      }));
-      
-      setMatchingImages(prev => [...newMatchingImages, ...prev]);
-      
       // Add this event to attended events if not already there
       const eventExists = attendedEvents.some(e => e.eventId === event.id);
       
@@ -678,7 +696,6 @@ const AttendeeDashboard: React.FC<AttendeeDashboardProps> = ({ setShowSignInModa
           eventId: event.id,
           eventName: event.name,
           eventDate: event.date,
-          // Use event's coverImage if available, otherwise fall back to first matched image
           thumbnailUrl: event.coverImage || sortedMatches[0].url,
           coverImage: event.coverImage || ''
         };
@@ -690,7 +707,6 @@ const AttendeeDashboard: React.FC<AttendeeDashboardProps> = ({ setShowSignInModa
       const matchedImageUrls = sortedMatches.map(match => match.url);
       const currentTimestamp = new Date().toISOString();
       
-      // Prepare the data to be stored
       const attendeeData = {
         userId: userEmail,
         eventId: event.id,
@@ -1228,7 +1244,7 @@ const AttendeeDashboard: React.FC<AttendeeDashboardProps> = ({ setShowSignInModa
               </div>
             </form>
             
-            {eventDetails && (
+            {!selfieUrl && eventDetails && (
               <div className="border border-blue-200 bg-blue-50 p-3 rounded-lg mt-4">
                 <h3 className="font-semibold text-blue-800 text-sm">{eventDetails.name}</h3>
                 <p className="text-blue-600 text-xs">
