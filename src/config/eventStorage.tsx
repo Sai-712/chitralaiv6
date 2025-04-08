@@ -29,6 +29,7 @@ export interface EventData {
   updatedAt: string;
   coverImage?: string;
   eventUrl?: string;    // URL for uploading selfies and getting matching images
+  emailAccess?: string[]; // List of email addresses that can access the event
 }
 
 // Store event data in DynamoDB
@@ -58,7 +59,8 @@ export const storeEventData = async (eventData: Omit<EventData, 'createdAt' | 'u
       createdAt: timestamp,
       updatedAt: timestamp,
       coverImage: eventData.coverImage || '',
-      eventUrl: eventData.eventUrl || ''
+      eventUrl: eventData.eventUrl || '',
+      emailAccess: eventData.emailAccess || []
     };
 
     // Log the item being stored (helpful for debugging)
