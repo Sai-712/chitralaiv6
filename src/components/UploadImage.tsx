@@ -8,19 +8,18 @@ import { getUserEvents, getEventById, updateEventData } from '../config/eventSto
 import imageCompression from 'browser-image-compression';
 
 const MAX_FILE_SIZE = 200 * 1024 * 1024; // 200MB
-const BATCH_SIZE = 50; // Increased from 20 to 50 for better batch processing
-const IMAGES_PER_PAGE = 50; // Number of images to show per page
-const MAX_PARALLEL_UPLOADS = 50; // Increased from 5 to 10 for more parallel uploads
-const MAX_DIMENSION = 2048; // Maximum image dimension
-
- // Increased from 0.5 for better quality while maintaining reasonable size
+const BATCH_SIZE = 20; // Increased for faster processing
+const IMAGES_PER_PAGE = 50;
+const MAX_PARALLEL_UPLOADS = 10; // Increased for faster parallel processing
+const MAX_DIMENSION = 2048;
+const UPLOAD_TIMEOUT = 300000; // 5 minutes timeout for large files
 
 const COMPRESSION_OPTIONS = {
-  maxSizeMB: 2, // Increased from 1 to 2 for better quality
+  maxSizeMB: 1,
   maxWidthOrHeight: 1920,
   useWebWorker: true,
   fileType: 'image/jpeg',
-  initialQuality: 0.7 // Added initial quality setting
+  initialQuality: 0.7
 };
 
 const UploadImage = () => {
@@ -43,6 +42,8 @@ const UploadImage = () => {
   const [eventCode, setEventCode] = useState<string>('');
   const [isAuthorized, setIsAuthorized] = useState<boolean | null>(null);
   const [authorizationMessage, setAuthorizationMessage] = useState<string>('');
+  const [compressionProgress, setCompressionProgress] = useState<{ current: number; total: number } | null>(null);
+  const [isCompressing, setIsCompressing] = useState(false);
 
   // Handle scroll for pagination
   const handleScroll = useCallback(() => {
@@ -220,59 +221,128 @@ const UploadImage = () => {
       const sessionId = localStorage.getItem('sessionId');
       const folderPath = `events/shared/${selectedEvent}/images/${fileName}`;
 
-      // Only compress if file is larger than 10MB
-      let processedFile = file;
-      if (file.type.startsWith('image/') && file.size > 10 * 1024 * 1024) {
-        try {
-          processedFile = await imageCompression(file, COMPRESSION_OPTIONS);
-          console.log(`Compressed ${fileName} from ${file.size} to ${processedFile.size} bytes`);
-        } catch (error) {
-          console.warn(`Failed to compress ${fileName}, uploading original:`, error);
-        }
-      } else {
-        console.log(`Skipping compression for ${fileName} (${(file.size / (1024 * 1024)).toFixed(2)}MB)`);
+      // Upload original file without compression
+      let fileBuffer: ArrayBuffer;
+      try {
+        fileBuffer = await file.arrayBuffer();
+      } catch (error) {
+        console.error(`Failed to read file ${fileName}:`, error);
+        throw new Error('Failed to process file. Please try again.');
       }
 
-      // Convert file to ArrayBuffer first to ensure proper handling of WhatsApp images
-      const fileBuffer = await processedFile.arrayBuffer();
       const fileUint8Array = new Uint8Array(fileBuffer);
 
       const uploadParams = {
         Bucket: S3_BUCKET_NAME,
         Key: folderPath,
         Body: fileUint8Array,
-        ContentType: processedFile.type,
+        ContentType: file.type,
         Metadata: {
           'event-id': selectedEvent,
           'session-id': sessionId || '',
           'upload-date': new Date().toISOString(),
+          'original-size': file.size.toString(),
+          'needs-compression': (file.size > 5 * 1024 * 1024).toString()
         },
       };
 
       const uploadInstance = new Upload({
         client: s3Client,
         params: uploadParams,
-        partSize: 10 * 1024 * 1024, // Increased from 5MB to 10MB for better performance
-        queueSize: 8, // Increased from 4 to 8 for more parallel parts
+        partSize: 50 * 1024 * 1024, // Increased to 50MB for faster uploads
+        queueSize: 8, // Increased for better parallelization
         leavePartsOnError: false,
       });
 
-      // Add progress tracking
-      uploadInstance.on('httpUploadProgress', (progress) => {
-        const loaded = progress.loaded || 0;
-        const total = progress.total || 1;
-        console.log(`Upload progress for ${fileName}:`, {
-          loaded,
-          total,
-          percentage: Math.round((loaded / total) * 100)
+      let uploadTimeout: NodeJS.Timeout;
+      const uploadPromise = new Promise<string>((resolve, reject) => {
+        uploadTimeout = setTimeout(() => {
+          reject(new Error('Upload timed out. Please try again.'));
+        }, UPLOAD_TIMEOUT);
+
+        uploadInstance.on('httpUploadProgress', (progress) => {
+          const loaded = progress.loaded || 0;
+          const total = progress.total || 1;
+          console.log(`Upload progress for ${fileName}:`, {
+            loaded,
+            total,
+            percentage: Math.round((loaded / total) * 100)
+          });
         });
+
+        uploadInstance.done()
+          .then(() => resolve(folderPath))
+          .catch(reject)
+          .finally(() => clearTimeout(uploadTimeout));
       });
 
-      await uploadInstance.done();
-      return folderPath;
+      return uploadPromise;
     },
     [selectedEvent]
   );
+
+  // New function to compress and replace images in background
+  const compressAndReplaceImages = useCallback(async (urls: string[]) => {
+    setIsCompressing(true);
+    setCompressionProgress({ current: 0, total: urls.length });
+
+    try {
+      for (let i = 0; i < urls.length; i++) {
+        const url = urls[i];
+        const key = url.split('.com/')[1];
+        
+        // Get the original file from S3
+        const response = await fetch(url);
+        const blob = await response.blob();
+        const file = new File([blob], key.split('/').pop() || 'image.jpg', { type: blob.type });
+
+        // Only compress if file is larger than 5MB
+        if (file.size > 5 * 1024 * 1024) {
+          try {
+            const compressedFile = await imageCompression(file, COMPRESSION_OPTIONS);
+            console.log(`Compressed ${file.name} from ${file.size} to ${compressedFile.size} bytes`);
+
+            // Upload compressed version
+            const compressedBuffer = await compressedFile.arrayBuffer();
+            const compressedUint8Array = new Uint8Array(compressedBuffer);
+
+            const uploadParams = {
+              Bucket: S3_BUCKET_NAME,
+              Key: key,
+              Body: compressedUint8Array,
+              ContentType: file.type,
+              Metadata: {
+                'event-id': selectedEvent,
+                'session-id': localStorage.getItem('sessionId') || '',
+                'upload-date': new Date().toISOString(),
+                'compressed-size': compressedFile.size.toString(),
+                'compressed': 'true'
+              },
+            };
+
+            const uploadInstance = new Upload({
+              client: s3Client,
+              params: uploadParams,
+              partSize: 20 * 1024 * 1024,
+              queueSize: 4,
+              leavePartsOnError: false,
+            });
+
+            await uploadInstance.done();
+          } catch (error) {
+            console.warn(`Failed to compress ${file.name}, keeping original:`, error);
+          }
+        }
+
+        setCompressionProgress(prev => prev ? { ...prev, current: i + 1 } : null);
+      }
+    } catch (error) {
+      console.error('Error during background compression:', error);
+    } finally {
+      setIsCompressing(false);
+      setCompressionProgress(null);
+    }
+  }, [selectedEvent]);
 
   const handleUpload = useCallback(async () => {
     if (images.length === 0) {
@@ -292,8 +362,8 @@ const UploadImage = () => {
     setUploadProgress({ current: 0, total: totalCount });
 
     try {
-      // Process images in larger batches for better parallelization
-      const batchSize = Math.min(MAX_PARALLEL_UPLOADS * 2, 20); // Process up to 20 images at once
+      // Process all images in parallel with a larger batch size
+      const batchSize = Math.min(MAX_PARALLEL_UPLOADS, 10);
       const batches = [];
       for (let i = 0; i < images.length; i += batchSize) {
         batches.push(images.slice(i, i + batchSize));
@@ -302,57 +372,58 @@ const UploadImage = () => {
       const urls = [];
       const failedUploads = [];
 
-      // Process batches with better error handling
-      for (const batch of batches) {
-        const batchPromises = batch.map(async (image, index) => {
-          try {
-            if (!image.type.startsWith('image/')) {
-              throw new Error('Not a valid image file');
+      // Process all batches in parallel
+      const batchPromises = batches.map(async (batch) => {
+        const batchResults = await Promise.allSettled(
+          batch.map(async (image, index) => {
+            try {
+              if (!image.type.startsWith('image/')) {
+                throw new Error('Not a valid image file');
+              }
+              if (image.size > MAX_FILE_SIZE) {
+                throw new Error('Exceeds the 200MB size limit');
+              }
+              
+              const safeFileName = image.name.replace(/[^a-zA-Z0-9.-]/g, '_');
+              const fileName = `${Date.now()}-${index}-${safeFileName}`;
+              
+              const imageUrl = await uploadToS3(image, fileName);
+              uploadedCount++;
+              setUploadProgress({ current: uploadedCount, total: totalCount });
+              return `https://${S3_BUCKET_NAME}.s3.amazonaws.com/${imageUrl}`;
+            } catch (error) {
+              console.error(`Failed to upload ${image.name}:`, error);
+              failedUploads.push({ 
+                name: image.name, 
+                reason: error instanceof Error ? error.message : 'Unknown error' 
+              });
+              return null;
             }
-            if (image.size > MAX_FILE_SIZE) {
-              throw new Error('Exceeds the 200MB size limit');
-            }
-            
-            // Use a safe filename format without special characters
-            const safeFileName = image.name.replace(/[^a-zA-Z0-9.-]/g, '_');
-            const fileName = `${Date.now()}-${index}-${safeFileName}`;
-            
-            const imageUrl = await uploadToS3(image, fileName);
-            uploadedCount++;
-            setUploadProgress({ current: uploadedCount, total: totalCount });
-            return `https://${S3_BUCKET_NAME}.s3.amazonaws.com/${imageUrl}`;
-          } catch (error) {
-            console.error(`Failed to upload ${image.name}:`, error);
-            failedUploads.push({ 
-              name: image.name, 
-              reason: error instanceof Error ? error.message : 'Unknown error' 
-            });
-            return null;
-          }
-        });
+          })
+        );
 
-        // Process each batch with a timeout to prevent hanging
-        const batchResults = await Promise.race([
-          Promise.all(batchPromises),
-          new Promise((_, reject) => 
-            setTimeout(() => reject(new Error('Batch upload timed out')), 30000)
-          )
-        ]).catch(error => {
-          console.error('Batch upload error:', error);
-          return batchPromises.map(() => null);
-        }) as (string | null)[];
+        return batchResults.map(result => 
+          result.status === 'fulfilled' ? result.value : null
+        );
+      });
 
-        // Filter out null results (failed uploads)
-        const validUrls = batchResults.filter((url: string | null): url is string => url !== null);
-        urls.push(...validUrls);
-      }
+      // Wait for all batches to complete
+      const allResults = await Promise.all(batchPromises);
+      const validUrls = allResults.flat().filter((url): url is string => url !== null);
+      urls.push(...validUrls);
+
+      // Clean up preview URLs
+      images.forEach(image => {
+        if (imagePreviews[image.name]) {
+          URL.revokeObjectURL(imagePreviews[image.name]);
+        }
+      });
 
       console.log('Uploaded images:', urls);
       setUploadedUrls(urls);
       localStorage.setItem('currentEventId', selectedEvent);
       setEventId(selectedEvent);
       
-      // Update the photoCount in DynamoDB
       const userEmail = localStorage.getItem('userEmail');
       if (userEmail) {
         try {
@@ -361,14 +432,12 @@ const UploadImage = () => {
             await updateEventData(selectedEvent, userEmail, {
               photoCount: (currentEvent.photoCount || 0) + urls.length
             });
-            console.log(`Updated photoCount for event ${selectedEvent} to ${(currentEvent.photoCount || 0) + urls.length}`);
           }
         } catch (error) {
           console.error('Error updating photoCount:', error);
         }
       }
       
-      // Show success message with information about failed uploads if any
       if (failedUploads.length > 0) {
         const message = `${urls.length} images uploaded successfully.\n${failedUploads.length} images failed to upload.`;
         alert(message);
@@ -376,15 +445,13 @@ const UploadImage = () => {
       
       setUploadSuccess(true);
       
-      // Only show QR modal if at least one image was uploaded successfully
       if (urls.length > 0) {
         setShowQRModal(true);
+        // Start background compression after showing QR code
+        compressAndReplaceImages(urls);
       }
       
-      // Clear the selected images and their previews after successful upload
       setImages([]);
-      // Clean up preview URLs
-      Object.values(imagePreviews).forEach(url => URL.revokeObjectURL(url));
       setImagePreviews({});
     } catch (error) {
       console.error('Error uploading images:', error);
@@ -393,7 +460,7 @@ const UploadImage = () => {
       setIsUploading(false);
       setUploadProgress(null);
     }
-  }, [images, selectedEvent, uploadToS3, imagePreviews]);
+  }, [images, selectedEvent, uploadToS3, imagePreviews, compressAndReplaceImages]);
 
   const handleDownload = useCallback(async (url: string) => {
     try {
@@ -907,6 +974,23 @@ const UploadImage = () => {
                 </div>
               </div>
             )}
+            {/*
+            {/* Add compression progress indicator */}
+            {isCompressing && compressionProgress && (
+              <div className="fixed bottom-4 right-4 bg-white p-4 rounded-lg shadow-lg">
+                <div className="flex items-center space-x-2">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Compressing images: {compressionProgress.current}/{compressionProgress.total}</span>
+                </div>
+                <div className="mt-2 w-full bg-gray-200 rounded-full h-2">
+                  <div 
+                    className="bg-blue-600 h-2 rounded-full transition-all duration-300" 
+                    style={{ width: `${(compressionProgress.current / compressionProgress.total) * 100}%` }}
+                  ></div>
+                </div>
+              </div> 
+            )}
+            
           </div>
         </div>
       </div>
