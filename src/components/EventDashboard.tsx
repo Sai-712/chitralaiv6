@@ -91,6 +91,8 @@ const generateUniqueEventId = async (): Promise<string> => {
     return eventId;
 };
 
+const MAX_COVER_IMAGE_SIZE = 500 * 1024 * 1024; // 500MB
+
 const EventDashboard = (props: EventDashboardProps) => {
     const navigate = useNavigate();
     const { userEmail, userRole, setUserRole } = useContext(UserContext);
@@ -284,7 +286,19 @@ const EventDashboard = (props: EventDashboardProps) => {
     const handleCoverImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files[0]) {
             const file = e.target.files[0];
-            // No size limit for cover images
+            
+            // Validate file size
+            if (file.size > MAX_COVER_IMAGE_SIZE) {
+                alert(`File size (${(file.size / (1024 * 1024)).toFixed(2)}MB) exceeds the maximum limit of 500MB`);
+                return;
+            }
+
+            // Validate file type
+            if (!file.type.startsWith('image/')) {
+                alert('Please upload a valid image file');
+                return;
+            }
+
             setNewEvent(prev => ({ ...prev, coverImage: file }));
             setCoverImagePreview(URL.createObjectURL(file));
         }
@@ -383,7 +397,9 @@ const EventDashboard = (props: EventDashboardProps) => {
                             ContentType: newEvent.coverImage.type,
                             ACL: 'public-read'
                         },
-                        partSize: 1024 * 1024 * 5
+                        queueSize: 4, // Increase concurrent uploads
+                        partSize: 1024 * 1024 * 20, // 20MB chunks for better performance with large files
+                        leavePartsOnError: false
                     });
 
                     console.log('Starting S3 upload...');
