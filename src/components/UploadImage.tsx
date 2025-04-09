@@ -8,14 +8,19 @@ import { getUserEvents, getEventById, updateEventData } from '../config/eventSto
 import imageCompression from 'browser-image-compression';
 
 const MAX_FILE_SIZE = 200 * 1024 * 1024; // 200MB
-const BATCH_SIZE = 20; // Number of images to process in each batch
+const BATCH_SIZE = 50; // Increased from 20 to 50 for better batch processing
 const IMAGES_PER_PAGE = 50; // Number of images to show per page
-const MAX_PARALLEL_UPLOADS = 5; // Maximum number of parallel uploads
+const MAX_PARALLEL_UPLOADS = 50; // Increased from 5 to 10 for more parallel uploads
+const MAX_DIMENSION = 2048; // Maximum image dimension
+
+ // Increased from 0.5 for better quality while maintaining reasonable size
+
 const COMPRESSION_OPTIONS = {
-  maxSizeMB: 1,
+  maxSizeMB: 2, // Increased from 1 to 2 for better quality
   maxWidthOrHeight: 1920,
   useWebWorker: true,
-  fileType: 'image/jpeg'
+  fileType: 'image/jpeg',
+  initialQuality: 0.7 // Added initial quality setting
 };
 
 const UploadImage = () => {
@@ -215,15 +220,17 @@ const UploadImage = () => {
       const sessionId = localStorage.getItem('sessionId');
       const folderPath = `events/shared/${selectedEvent}/images/${fileName}`;
 
-      // Compress image before upload
+      // Only compress if file is larger than 10MB
       let processedFile = file;
-      if (file.type.startsWith('image/')) {
+      if (file.type.startsWith('image/') && file.size > 10 * 1024 * 1024) {
         try {
           processedFile = await imageCompression(file, COMPRESSION_OPTIONS);
           console.log(`Compressed ${fileName} from ${file.size} to ${processedFile.size} bytes`);
         } catch (error) {
           console.warn(`Failed to compress ${fileName}, uploading original:`, error);
         }
+      } else {
+        console.log(`Skipping compression for ${fileName} (${(file.size / (1024 * 1024)).toFixed(2)}MB)`);
       }
 
       // Convert file to ArrayBuffer first to ensure proper handling of WhatsApp images
@@ -245,9 +252,20 @@ const UploadImage = () => {
       const uploadInstance = new Upload({
         client: s3Client,
         params: uploadParams,
-        partSize: 5 * 1024 * 1024, // 5MB parts for better performance
-        queueSize: 4, // Number of parts to upload in parallel
+        partSize: 10 * 1024 * 1024, // Increased from 5MB to 10MB for better performance
+        queueSize: 8, // Increased from 4 to 8 for more parallel parts
         leavePartsOnError: false,
+      });
+
+      // Add progress tracking
+      uploadInstance.on('httpUploadProgress', (progress) => {
+        const loaded = progress.loaded || 0;
+        const total = progress.total || 1;
+        console.log(`Upload progress for ${fileName}:`, {
+          loaded,
+          total,
+          percentage: Math.round((loaded / total) * 100)
+        });
       });
 
       await uploadInstance.done();
@@ -274,45 +292,58 @@ const UploadImage = () => {
     setUploadProgress({ current: 0, total: totalCount });
 
     try {
-      // Process images in batches for parallel upload
+      // Process images in larger batches for better parallelization
+      const batchSize = Math.min(MAX_PARALLEL_UPLOADS * 2, 20); // Process up to 20 images at once
       const batches = [];
-      for (let i = 0; i < images.length; i += MAX_PARALLEL_UPLOADS) {
-        batches.push(images.slice(i, i + MAX_PARALLEL_UPLOADS));
+      for (let i = 0; i < images.length; i += batchSize) {
+        batches.push(images.slice(i, i + batchSize));
       }
 
       const urls = [];
       const failedUploads = [];
 
+      // Process batches with better error handling
       for (const batch of batches) {
         const batchPromises = batch.map(async (image, index) => {
-          if (!image.type.startsWith('image/')) {
-            failedUploads.push({ name: image.name, reason: 'Not a valid image file' });
-            return null;
-          }
-          if (image.size > MAX_FILE_SIZE) {
-            failedUploads.push({ name: image.name, reason: 'Exceeds the 200MB size limit' });
-            return null;
-          }
-          
-          // Use a safe filename format without special characters
-          const safeFileName = image.name.replace(/[^a-zA-Z0-9.-]/g, '_');
-          const fileName = `${Date.now()}-${index}-${safeFileName}`;
-          
           try {
+            if (!image.type.startsWith('image/')) {
+              throw new Error('Not a valid image file');
+            }
+            if (image.size > MAX_FILE_SIZE) {
+              throw new Error('Exceeds the 200MB size limit');
+            }
+            
+            // Use a safe filename format without special characters
+            const safeFileName = image.name.replace(/[^a-zA-Z0-9.-]/g, '_');
+            const fileName = `${Date.now()}-${index}-${safeFileName}`;
+            
             const imageUrl = await uploadToS3(image, fileName);
             uploadedCount++;
             setUploadProgress({ current: uploadedCount, total: totalCount });
             return `https://${S3_BUCKET_NAME}.s3.amazonaws.com/${imageUrl}`;
           } catch (error) {
             console.error(`Failed to upload ${image.name}:`, error);
-            failedUploads.push({ name: image.name, reason: error instanceof Error ? error.message : 'Unknown error' });
+            failedUploads.push({ 
+              name: image.name, 
+              reason: error instanceof Error ? error.message : 'Unknown error' 
+            });
             return null;
           }
         });
 
-        const batchResults = await Promise.all(batchPromises);
+        // Process each batch with a timeout to prevent hanging
+        const batchResults = await Promise.race([
+          Promise.all(batchPromises),
+          new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('Batch upload timed out')), 30000)
+          )
+        ]).catch(error => {
+          console.error('Batch upload error:', error);
+          return batchPromises.map(() => null);
+        }) as (string | null)[];
+
         // Filter out null results (failed uploads)
-        const validUrls = batchResults.filter(url => url !== null) as string[];
+        const validUrls = batchResults.filter((url: string | null): url is string => url !== null);
         urls.push(...validUrls);
       }
 
