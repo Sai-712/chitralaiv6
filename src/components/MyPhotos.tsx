@@ -35,17 +35,41 @@ const MyPhotos: React.FC = () => {
     // If Web Share API is supported and platform is not specified (direct share button click)
     if (typeof navigator.share === 'function' && !platform) {
       try {
+        // Fetch the image and convert to blob
+        const response = await fetch(imageUrl);
+        const blob = await response.blob();
+        
+        // Create a File object from the blob
+        const imageFile = new File([blob], 'photo.jpg', { type: blob.type });
+        
+        // Share the actual file
         await navigator.share({
           title: 'Check out this photo!',
           text: 'Photo from Chitralai',
-          url: imageUrl
+          files: [imageFile]
         });
+        
         // Close share menu if it's open
         setShareMenu(prev => ({ ...prev, isOpen: false }));
         return;
       } catch (err) {
-        if (err instanceof Error && err.name !== 'AbortError') {
-          console.error('Error sharing:', err);
+        // If file sharing is not supported, fall back to URL sharing
+        if (err instanceof Error && err.name === 'NotSupportedError') {
+          try {
+            await navigator.share({
+              title: 'Check out this photo!',
+              text: 'Photo from Chitralai',
+              url: imageUrl
+            });
+            setShareMenu(prev => ({ ...prev, isOpen: false }));
+            return;
+          } catch (urlShareErr) {
+            if (urlShareErr instanceof Error && urlShareErr.name !== 'AbortError') {
+              console.error('Error sharing URL:', urlShareErr);
+            }
+          }
+        } else if (err instanceof Error && err.name !== 'AbortError') {
+          console.error('Error sharing file:', err);
         }
         // Fall through to custom share menu if sharing fails
       }
