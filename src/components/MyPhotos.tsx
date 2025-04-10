@@ -32,6 +32,26 @@ const MyPhotos: React.FC = () => {
   });
 
   const handleShare = async (platform: string, imageUrl: string) => {
+    // If Web Share API is supported and platform is not specified (direct share button click)
+    if (typeof navigator.share === 'function' && !platform) {
+      try {
+        await navigator.share({
+          title: 'Check out this photo!',
+          text: 'Photo from Chitralai',
+          url: imageUrl
+        });
+        // Close share menu if it's open
+        setShareMenu(prev => ({ ...prev, isOpen: false }));
+        return;
+      } catch (err) {
+        if (err instanceof Error && err.name !== 'AbortError') {
+          console.error('Error sharing:', err);
+        }
+        // Fall through to custom share menu if sharing fails
+      }
+    }
+
+    // Fallback to custom share menu for specific platforms
     const shareUrl = encodeURIComponent(imageUrl);
     const shareText = encodeURIComponent('Check out this photo!');
     
@@ -351,24 +371,6 @@ const MyPhotos: React.FC = () => {
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
-                        const rect = e.currentTarget.getBoundingClientRect();
-                        setShareMenu({
-                          isOpen: true,
-                          imageUrl: image.imageUrl,
-                          position: {
-                            top: rect.top - 200,
-                            left: rect.left - 200
-                          }
-                        });
-                      }}
-                      className="p-2 bg-black/50 text-white rounded-full hover:bg-black/70 transition-colors"
-                      title="Share photo"
-                    >
-                      <Share2 className="h-4 w-4" />
-                    </button>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
                         handleDownload(image.imageUrl);
                       }}
                       className="p-2 bg-black/50 text-white rounded-full hover:bg-black/70 transition-colors"
@@ -414,15 +416,40 @@ const MyPhotos: React.FC = () => {
               >
                 <X className="w-8 h-8" />
               </button>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleDownload(selectedImage.imageUrl);
-                }}
-                className="absolute bottom-4 right-4 p-2 rounded-full bg-black/10 text-white hover:bg-black/70 transition-colors duration-200 flex items-center gap-2"
-              >
-                <Download className="w-6 h-6" />
-              </button>
+              <div className="absolute bottom-4 right-4 flex space-x-2">
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    const rect = e.currentTarget.getBoundingClientRect();
+                    // Try native sharing first
+                    if (typeof navigator.share === 'function') {
+                      handleShare('', selectedImage.imageUrl);
+                    } else {
+                      // Fall back to custom share menu
+                      setShareMenu({
+                        isOpen: true,
+                        imageUrl: selectedImage.imageUrl,
+                        position: {
+                          top: rect.top - 200,
+                          left: rect.left - 200
+                        }
+                      });
+                    }
+                  }}
+                  className="p-2 rounded-full bg-black/10 text-white hover:bg-black/70 transition-colors duration-200 flex items-center gap-2"
+                >
+                  <Share2 className="w-6 h-6" />
+                </button>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleDownload(selectedImage.imageUrl);
+                  }}
+                  className="p-2 rounded-full bg-black/10 text-white hover:bg-black/70 transition-colors duration-200 flex items-center gap-2"
+                >
+                  <Download className="w-6 h-6" />
+                </button>
+              </div>
             </div>
           </div>
         )}
