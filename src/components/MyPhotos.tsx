@@ -1,6 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Image as ImageIcon, ArrowLeft, Download, X } from 'lucide-react';
+import { Image as ImageIcon, ArrowLeft, Download, X, Share2, Facebook, Twitter, Link, Mail, Instagram, Linkedin, MessageCircle } from 'lucide-react';
+
+interface ShareMenuState {
+  isOpen: boolean;
+  imageUrl: string;
+  position: {
+    top: number;
+    left: number;
+  };
+}
 import { getAllAttendeeImagesByUser } from '../config/attendeeStorage';
 
 interface MatchingImage {
@@ -16,6 +25,69 @@ const MyPhotos: React.FC = () => {
   const [images, setImages] = useState<MatchingImage[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedImage, setSelectedImage] = useState<MatchingImage | null>(null);
+  const [shareMenu, setShareMenu] = useState<ShareMenuState>({
+    isOpen: false,
+    imageUrl: '',
+    position: { top: 0, left: 0 }
+  });
+
+  const handleShare = async (platform: string, imageUrl: string) => {
+    const shareUrl = encodeURIComponent(imageUrl);
+    const shareText = encodeURIComponent('Check out this photo!');
+    
+    let shareLink = '';
+    switch (platform) {
+      case 'facebook':
+        shareLink = `https://www.facebook.com/sharer/sharer.php?u=${shareUrl}`;
+        break;
+      case 'twitter':
+        shareLink = `https://twitter.com/intent/tweet?url=${shareUrl}&text=${shareText}`;
+        break;
+      case 'instagram':
+        shareLink = `instagram://library?AssetPath=${shareUrl}`;
+        break;
+      case 'linkedin':
+        shareLink = `https://www.linkedin.com/sharing/share-offsite/?url=${shareUrl}`;
+        break;
+      case 'whatsapp':
+        shareLink = `https://api.whatsapp.com/send?text=${shareText}%20${shareUrl}`;
+        break;
+      case 'email':
+        shareLink = `mailto:?subject=${shareText}&body=${shareUrl}`;
+        break;
+      case 'copy':
+        try {
+          await navigator.clipboard.writeText(imageUrl);
+          alert('Link copied to clipboard!');
+          setShareMenu(prev => ({ ...prev, isOpen: false }));
+          return;
+        } catch (err) {
+          console.error('Failed to copy link:', err);
+          alert('Failed to copy link');
+        }
+        break;
+    }
+    
+    if (shareLink) {
+      window.open(shareLink, '_blank', 'noopener,noreferrer');
+      setShareMenu(prev => ({ ...prev, isOpen: false }));
+    }
+  };
+
+  // Close share menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (shareMenu.isOpen) {
+        const target = event.target as HTMLElement;
+        if (!target.closest('.share-menu')) {
+          setShareMenu(prev => ({ ...prev, isOpen: false }));
+        }
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [shareMenu.isOpen]);
 
   // Toggle header and footer visibility when image is clicked
   const toggleHeaderFooter = (visible: boolean) => {
@@ -173,7 +245,61 @@ const MyPhotos: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 pt-20 pb-6 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-gray-50 pt-24 pb-6 px-4 sm:px-6 lg:px-8">
+      {shareMenu.isOpen && (
+        <div
+          className="share-menu fixed z-50 bg-white rounded-lg shadow-xl p-4 w-64"
+          style={{
+            top: `${shareMenu.position.top}px`,
+            left: `${shareMenu.position.left}px`,
+          }}
+        >
+          <div className="grid grid-cols-3 gap-2">
+            <button
+              onClick={() => handleShare('facebook', shareMenu.imageUrl)}
+              className="flex flex-col items-center justify-center p-2 hover:bg-gray-100 rounded-lg transition-colors"
+            >
+              <Facebook className="h-6 w-6 text-blue-600" />
+            </button>
+            <button
+              onClick={() => handleShare('instagram', shareMenu.imageUrl)}
+              className="flex flex-col items-center justify-center p-2 hover:bg-gray-100 rounded-lg transition-colors"
+            >
+              <Instagram className="h-6 w-6 text-pink-600" />
+            </button>
+            <button
+              onClick={() => handleShare('twitter', shareMenu.imageUrl)}
+              className="flex flex-col items-center justify-center p-2 hover:bg-gray-100 rounded-lg transition-colors"
+            >
+              <Twitter className="h-6 w-6 text-blue-400" />
+            </button>
+            <button
+              onClick={() => handleShare('linkedin', shareMenu.imageUrl)}
+              className="flex flex-col items-center justify-center p-2 hover:bg-gray-100 rounded-lg transition-colors"
+            >
+              <Linkedin className="h-6 w-6 text-blue-700" />
+            </button>
+            <button
+              onClick={() => handleShare('whatsapp', shareMenu.imageUrl)}
+              className="flex flex-col items-center justify-center p-2 hover:bg-gray-100 rounded-lg transition-colors"
+            >
+              <MessageCircle className="h-6 w-6 text-green-500" />
+            </button>
+            <button
+              onClick={() => handleShare('email', shareMenu.imageUrl)}
+              className="flex flex-col items-center justify-center p-2 hover:bg-gray-100 rounded-lg transition-colors"
+            >
+              <Mail className="h-6 w-6 text-gray-600" />
+            </button>
+            <button
+              onClick={() => handleShare('copy', shareMenu.imageUrl)}
+              className="flex flex-col items-center justify-center p-2 hover:bg-gray-100 rounded-lg transition-colors col-start-2"
+            >
+              <Link className="h-6 w-6 text-gray-600" />
+            </button>
+          </div>
+        </div>
+      )}
       <div className="max-w-7xl mx-auto">
         <div className="mb-8">
           <button
@@ -221,15 +347,36 @@ const MyPhotos: React.FC = () => {
                     alt={`Photo from ${image.eventName}`}
                     className="object-cover w-full h-full"
                   />
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleDownload(image.imageUrl);
-                    }}
-                    className="absolute top-2 right-2 p-2 bg-black/50 text-white rounded-full hover:bg-black/70 transition-colors"
-                  >
-                    <Download className="h-4 w-4" />
-                  </button>
+                  <div className="absolute top-2 right-2 flex space-x-2">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        const rect = e.currentTarget.getBoundingClientRect();
+                        setShareMenu({
+                          isOpen: true,
+                          imageUrl: image.imageUrl,
+                          position: {
+                            top: rect.top - 200,
+                            left: rect.left - 200
+                          }
+                        });
+                      }}
+                      className="p-2 bg-black/50 text-white rounded-full hover:bg-black/70 transition-colors"
+                      title="Share photo"
+                    >
+                      <Share2 className="h-4 w-4" />
+                    </button>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDownload(image.imageUrl);
+                      }}
+                      className="p-2 bg-black/50 text-white rounded-full hover:bg-black/70 transition-colors"
+                      title="Download photo"
+                    >
+                      <Download className="h-4 w-4" />
+                    </button>
+                  </div>
                 </div>
               </div>
             ))}
@@ -284,4 +431,4 @@ const MyPhotos: React.FC = () => {
   );
 };
 
-export default MyPhotos; 
+export default MyPhotos;
