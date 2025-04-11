@@ -31,7 +31,10 @@ const MyPhotos: React.FC = () => {
     position: { top: 0, left: 0 }
   });
 
-  const handleShare = async (platform: string, imageUrl: string) => {
+  const handleShare = async (platform: string, imageUrl: string, e?: React.MouseEvent) => {
+    if (e) {
+      e.stopPropagation();
+    }
     // If Web Share API is supported and platform is not specified (direct share button click)
     if (typeof navigator.share === 'function' && !platform) {
       try {
@@ -207,7 +210,10 @@ const MyPhotos: React.FC = () => {
     fetchUserPhotos();
   }, [navigate]);
 
-  const handleDownload = async (url: string) => {
+  const handleDownload = async (url: string, e?: React.MouseEvent) => {
+    if (e) {
+      e.stopPropagation();
+    }
     try {
       // Fetch the image with appropriate headers
       const response = await fetch(url, {
@@ -300,43 +306,43 @@ const MyPhotos: React.FC = () => {
         >
           <div className="grid grid-cols-3 gap-2">
             <button
-              onClick={() => handleShare('facebook', shareMenu.imageUrl)}
+              onClick={(e) => handleShare('facebook', shareMenu.imageUrl, e)}
               className="flex flex-col items-center justify-center p-2 hover:bg-gray-100 rounded-lg transition-colors"
             >
               <Facebook className="h-6 w-6 text-blue-600" />
             </button>
             <button
-              onClick={() => handleShare('instagram', shareMenu.imageUrl)}
+              onClick={(e) => handleShare('instagram', shareMenu.imageUrl, e)}
               className="flex flex-col items-center justify-center p-2 hover:bg-gray-100 rounded-lg transition-colors"
             >
               <Instagram className="h-6 w-6 text-pink-600" />
             </button>
             <button
-              onClick={() => handleShare('twitter', shareMenu.imageUrl)}
+              onClick={(e) => handleShare('twitter', shareMenu.imageUrl, e)}
               className="flex flex-col items-center justify-center p-2 hover:bg-gray-100 rounded-lg transition-colors"
             >
               <Twitter className="h-6 w-6 text-blue-400" />
             </button>
             <button
-              onClick={() => handleShare('linkedin', shareMenu.imageUrl)}
+              onClick={(e) => handleShare('linkedin', shareMenu.imageUrl, e)}
               className="flex flex-col items-center justify-center p-2 hover:bg-gray-100 rounded-lg transition-colors"
             >
               <Linkedin className="h-6 w-6 text-blue-700" />
             </button>
             <button
-              onClick={() => handleShare('whatsapp', shareMenu.imageUrl)}
+              onClick={(e) => handleShare('whatsapp', shareMenu.imageUrl, e)}
               className="flex flex-col items-center justify-center p-2 hover:bg-gray-100 rounded-lg transition-colors"
             >
               <MessageCircle className="h-6 w-6 text-green-500" />
             </button>
             <button
-              onClick={() => handleShare('email', shareMenu.imageUrl)}
+              onClick={(e) => handleShare('email', shareMenu.imageUrl, e)}
               className="flex flex-col items-center justify-center p-2 hover:bg-gray-100 rounded-lg transition-colors"
             >
               <Mail className="h-6 w-6 text-gray-600" />
             </button>
             <button
-              onClick={() => handleShare('copy', shareMenu.imageUrl)}
+              onClick={(e) => handleShare('copy', shareMenu.imageUrl, e)}
               className="flex flex-col items-center justify-center p-2 hover:bg-gray-100 rounded-lg transition-colors col-start-2"
             >
               <Link className="h-6 w-6 text-gray-600" />
@@ -447,7 +453,7 @@ const MyPhotos: React.FC = () => {
                     const rect = e.currentTarget.getBoundingClientRect();
                     // Try native sharing first
                     if (typeof navigator.share === 'function') {
-                      handleShare('', selectedImage.imageUrl);
+                      handleShare('', selectedImage.imageUrl, e);
                     } else {
                       // Fall back to custom share menu
                       setShareMenu({
@@ -467,7 +473,7 @@ const MyPhotos: React.FC = () => {
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
-                    handleDownload(selectedImage.imageUrl);
+                    handleDownload(selectedImage.imageUrl, e);
                   }}
                   className="p-2 rounded-full bg-black/10 text-white hover:bg-black/70 transition-colors duration-200 flex items-center gap-2"
                 >
