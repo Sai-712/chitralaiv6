@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Camera, Calendar, Image as ImageIcon, ArrowRight, X, Search, Download } from 'lucide-react';
+import { Camera, Calendar, Image as ImageIcon, ArrowRight, X, Search, Download, Share2, Facebook, Instagram, Twitter, Linkedin, MessageCircle, Mail, Link } from 'lucide-react';
 import { ListObjectsV2Command } from '@aws-sdk/client-s3';
 import { Upload } from '@aws-sdk/lib-storage';
 import { S3_BUCKET_NAME, s3Client, rekognitionClient } from '../config/aws';
@@ -72,6 +72,17 @@ const AttendeeDashboard: React.FC<AttendeeDashboardProps> = ({ setShowSignInModa
   
   // New state for enlarged image modal
   const [selectedImage, setSelectedImage] = useState<MatchingImage | null>(null);
+
+  // New state for share menu
+  const [shareMenu, setShareMenu] = useState<{
+    isOpen: boolean;
+    imageUrl: string;
+    position: { top: number; left: number };
+  }>({
+    isOpen: false,
+    imageUrl: '',
+    position: { top: 0, left: 0 }
+  });
 
   // Toggle header and footer visibility when image is clicked
   const toggleHeaderFooter = (visible: boolean) => {
@@ -1179,6 +1190,107 @@ const AttendeeDashboard: React.FC<AttendeeDashboardProps> = ({ setShowSignInModa
     }
   `;
 
+  // New function to handle sharing image
+  const handleShare = async (platform: string, imageUrl: string, e?: React.MouseEvent) => {
+    if (e) {
+      e.stopPropagation();
+    }
+
+    try {
+      // Fetch the image and convert to blob
+      const response = await fetch(imageUrl, {
+        headers: {
+          'Cache-Control': 'no-cache',
+        },
+        mode: 'cors',
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Failed to fetch image: ${response.statusText}`);
+      }
+      
+      const blob = await response.blob();
+      const imageFile = new File([blob], 'photo.jpg', { type: blob.type });
+
+      // If Web Share API is supported and platform is not specified (direct share button click)
+      if (typeof navigator.share === 'function' && !platform) {
+        try {
+          await navigator.share({
+            title: 'Check out this photo!',
+            text: 'Photo from Chitralai',
+            files: [imageFile]
+          });
+          setShareMenu(prev => ({ ...prev, isOpen: false }));
+          return;
+        } catch (err) {
+          if (err instanceof Error && err.name !== 'AbortError') {
+            console.error('Error sharing file:', err);
+          }
+        }
+      }
+
+      // Fallback to custom share menu for specific platforms
+      const shareUrl = encodeURIComponent(imageUrl);
+      const shareText = encodeURIComponent('Check out this photo!');
+      
+      let shareLink = '';
+      switch (platform) {
+        case 'facebook':
+          shareLink = `https://www.facebook.com/sharer/sharer.php?u=${shareUrl}`;
+          break;
+        case 'twitter':
+          shareLink = `https://twitter.com/intent/tweet?url=${shareUrl}&text=${shareText}`;
+          break;
+        case 'instagram':
+          shareLink = `instagram://library?AssetPath=${shareUrl}`;
+          break;
+        case 'linkedin':
+          shareLink = `https://www.linkedin.com/sharing/share-offsite/?url=${shareUrl}`;
+          break;
+        case 'whatsapp':
+          shareLink = `https://api.whatsapp.com/send?text=${shareText}%20${shareUrl}`;
+          break;
+        case 'email':
+          shareLink = `mailto:?subject=${shareText}&body=${shareUrl}`;
+          break;
+        case 'copy':
+          try {
+            await navigator.clipboard.writeText(imageUrl);
+            alert('Link copied to clipboard!');
+            setShareMenu(prev => ({ ...prev, isOpen: false }));
+            return;
+          } catch (err) {
+            console.error('Failed to copy link:', err);
+            alert('Failed to copy link');
+          }
+          break;
+      }
+      
+      if (shareLink) {
+        window.open(shareLink, '_blank', 'noopener,noreferrer');
+        setShareMenu(prev => ({ ...prev, isOpen: false }));
+      }
+    } catch (error) {
+      console.error('Error sharing image:', error);
+      alert('Failed to share image. Please try again.');
+    }
+  };
+
+  // Close share menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (shareMenu.isOpen) {
+        const target = event.target as HTMLElement;
+        if (!target.closest('.share-menu')) {
+          setShareMenu(prev => ({ ...prev, isOpen: false }));
+        }
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [shareMenu.isOpen]);
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
@@ -1557,15 +1669,40 @@ const AttendeeDashboard: React.FC<AttendeeDashboardProps> = ({ setShowSignInModa
             >
               <X className="w-8 h-8" />
             </button>
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                handleDownload(selectedImage.imageUrl);
-              }}
-              className="absolute bottom-4 right-4 p-2 rounded-full bg-black/10 text-white hover:bg-black/70 transition-colors duration-200 flex items-center gap-2"
-            >
-              <Download className="w-6 h-6" />
-            </button>
+            <div className="absolute bottom-4 right-4 flex space-x-2">
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  const rect = e.currentTarget.getBoundingClientRect();
+                  // Try native sharing first
+                  if (typeof navigator.share === 'function') {
+                    handleShare('', selectedImage.imageUrl, e);
+                  } else {
+                    // Fall back to custom share menu
+                    setShareMenu({
+                      isOpen: true,
+                      imageUrl: selectedImage.imageUrl,
+                      position: {
+                        top: rect.top - 200,
+                        left: rect.left - 200
+                      }
+                    });
+                  }
+                }}
+                className="p-2 rounded-full bg-black/10 text-white hover:bg-black/70 transition-colors duration-200 flex items-center gap-2"
+              >
+                <Share2 className="w-6 h-6" />
+              </button>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleDownload(selectedImage.imageUrl);
+                }}
+                className="p-2 rounded-full bg-black/10 text-white hover:bg-black/70 transition-colors duration-200 flex items-center gap-2"
+              >
+                <Download className="w-6 h-6" />
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -1635,6 +1772,62 @@ const AttendeeDashboard: React.FC<AttendeeDashboardProps> = ({ setShowSignInModa
               </div>
               <span className="text-sm font-medium">{successMessage}</span>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Share Menu */}
+      {shareMenu.isOpen && (
+        <div
+          className="share-menu fixed z-50 bg-white rounded-lg shadow-xl p-4 w-64"
+          style={{
+            top: `${shareMenu.position.top}px`,
+            left: `${shareMenu.position.left}px`,
+          }}
+        >
+          <div className="grid grid-cols-3 gap-2">
+            <button
+              onClick={(e) => handleShare('facebook', shareMenu.imageUrl, e)}
+              className="flex flex-col items-center justify-center p-2 hover:bg-gray-100 rounded-lg transition-colors"
+            >
+              <Facebook className="h-6 w-6 text-blue-600" />
+            </button>
+            <button
+              onClick={(e) => handleShare('instagram', shareMenu.imageUrl, e)}
+              className="flex flex-col items-center justify-center p-2 hover:bg-gray-100 rounded-lg transition-colors"
+            >
+              <Instagram className="h-6 w-6 text-pink-600" />
+            </button>
+            <button
+              onClick={(e) => handleShare('twitter', shareMenu.imageUrl, e)}
+              className="flex flex-col items-center justify-center p-2 hover:bg-gray-100 rounded-lg transition-colors"
+            >
+              <Twitter className="h-6 w-6 text-blue-400" />
+            </button>
+            <button
+              onClick={(e) => handleShare('linkedin', shareMenu.imageUrl, e)}
+              className="flex flex-col items-center justify-center p-2 hover:bg-gray-100 rounded-lg transition-colors"
+            >
+              <Linkedin className="h-6 w-6 text-blue-700" />
+            </button>
+            <button
+              onClick={(e) => handleShare('whatsapp', shareMenu.imageUrl, e)}
+              className="flex flex-col items-center justify-center p-2 hover:bg-gray-100 rounded-lg transition-colors"
+            >
+              <MessageCircle className="h-6 w-6 text-green-500" />
+            </button>
+            <button
+              onClick={(e) => handleShare('email', shareMenu.imageUrl, e)}
+              className="flex flex-col items-center justify-center p-2 hover:bg-gray-100 rounded-lg transition-colors"
+            >
+              <Mail className="h-6 w-6 text-gray-600" />
+            </button>
+            <button
+              onClick={(e) => handleShare('copy', shareMenu.imageUrl, e)}
+              className="flex flex-col items-center justify-center p-2 hover:bg-gray-100 rounded-lg transition-colors col-start-2"
+            >
+              <Link className="h-6 w-6 text-gray-600" />
+            </button>
           </div>
         </div>
       )}
