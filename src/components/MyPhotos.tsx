@@ -35,89 +35,84 @@ const MyPhotos: React.FC = () => {
     if (e) {
       e.stopPropagation();
     }
-    // If Web Share API is supported and platform is not specified (direct share button click)
-    if (typeof navigator.share === 'function' && !platform) {
-      try {
-        // Fetch the image and convert to blob
-        const response = await fetch(imageUrl);
-        const blob = await response.blob();
-        
-        // Create a File object from the blob
-        const imageFile = new File([blob], 'photo.jpg', { type: blob.type });
-        
-        // Share the actual file
-        await navigator.share({
-          title: 'Check out this photo!',
-          text: 'Photo from Chitralai',
-          files: [imageFile]
-        });
-        
-        // Close share menu if it's open
-        setShareMenu(prev => ({ ...prev, isOpen: false }));
-        return;
-      } catch (err) {
-        // If file sharing is not supported, fall back to URL sharing
-        if (err instanceof Error && err.name === 'NotSupportedError') {
-          try {
-            await navigator.share({
-              title: 'Check out this photo!',
-              text: 'Photo from Chitralai',
-              url: imageUrl
-            });
-            setShareMenu(prev => ({ ...prev, isOpen: false }));
-            return;
-          } catch (urlShareErr) {
-            if (urlShareErr instanceof Error && urlShareErr.name !== 'AbortError') {
-              console.error('Error sharing URL:', urlShareErr);
-            }
-          }
-        } else if (err instanceof Error && err.name !== 'AbortError') {
-          console.error('Error sharing file:', err);
-        }
-        // Fall through to custom share menu if sharing fails
-      }
-    }
 
-    // Fallback to custom share menu for specific platforms
-    const shareUrl = encodeURIComponent(imageUrl);
-    const shareText = encodeURIComponent('Check out this photo!');
-    
-    let shareLink = '';
-    switch (platform) {
-      case 'facebook':
-        shareLink = `https://www.facebook.com/sharer/sharer.php?u=${shareUrl}`;
-        break;
-      case 'twitter':
-        shareLink = `https://twitter.com/intent/tweet?url=${shareUrl}&text=${shareText}`;
-        break;
-      case 'instagram':
-        shareLink = `instagram://library?AssetPath=${shareUrl}`;
-        break;
-      case 'linkedin':
-        shareLink = `https://www.linkedin.com/sharing/share-offsite/?url=${shareUrl}`;
-        break;
-      case 'whatsapp':
-        shareLink = `https://api.whatsapp.com/send?text=${shareText}%20${shareUrl}`;
-        break;
-      case 'email':
-        shareLink = `mailto:?subject=${shareText}&body=${shareUrl}`;
-        break;
-      case 'copy':
+    try {
+      // Fetch the image and convert to blob
+      const response = await fetch(imageUrl, {
+        headers: {
+          'Cache-Control': 'no-cache',
+        },
+        mode: 'cors',
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Failed to fetch image: ${response.statusText}`);
+      }
+      
+      const blob = await response.blob();
+      const imageFile = new File([blob], 'photo.jpg', { type: blob.type });
+
+      // If Web Share API is supported and platform is not specified (direct share button click)
+      if (typeof navigator.share === 'function' && !platform) {
         try {
-          await navigator.clipboard.writeText(imageUrl);
-          alert('Link copied to clipboard!');
+          await navigator.share({
+            title: 'Check out this photo!',
+            text: 'Photo from Chitralai',
+            files: [imageFile]
+          });
           setShareMenu(prev => ({ ...prev, isOpen: false }));
           return;
         } catch (err) {
-          console.error('Failed to copy link:', err);
-          alert('Failed to copy link');
+          if (err instanceof Error && err.name !== 'AbortError') {
+            console.error('Error sharing file:', err);
+          }
         }
-        break;
-    }
-    
-    if (shareLink) {
-      window.open(shareLink, '_blank', 'noopener,noreferrer');
-      setShareMenu(prev => ({ ...prev, isOpen: false }));
+      }
+
+      // Fallback to custom share menu for specific platforms
+      const shareUrl = encodeURIComponent(imageUrl);
+      const shareText = encodeURIComponent('Check out this photo!');
+      
+      let shareLink = '';
+      switch (platform) {
+        case 'facebook':
+          shareLink = `https://www.facebook.com/sharer/sharer.php?u=${shareUrl}`;
+          break;
+        case 'twitter':
+          shareLink = `https://twitter.com/intent/tweet?url=${shareUrl}&text=${shareText}`;
+          break;
+        case 'instagram':
+          shareLink = `instagram://library?AssetPath=${shareUrl}`;
+          break;
+        case 'linkedin':
+          shareLink = `https://www.linkedin.com/sharing/share-offsite/?url=${shareUrl}`;
+          break;
+        case 'whatsapp':
+          shareLink = `https://api.whatsapp.com/send?text=${shareText}%20${shareUrl}`;
+          break;
+        case 'email':
+          shareLink = `mailto:?subject=${shareText}&body=${shareUrl}`;
+          break;
+        case 'copy':
+          try {
+            await navigator.clipboard.writeText(imageUrl);
+            alert('Link copied to clipboard!');
+            setShareMenu(prev => ({ ...prev, isOpen: false }));
+            return;
+          } catch (err) {
+            console.error('Failed to copy link:', err);
+            alert('Failed to copy link');
+          }
+          break;
+      }
+      
+      if (shareLink) {
+        window.open(shareLink, '_blank', 'noopener,noreferrer');
+        setShareMenu(prev => ({ ...prev, isOpen: false }));
+      }
+    } catch (error) {
+      console.error('Error sharing image:', error);
+      alert('Failed to share image. Please try again.');
     }
   };
 
