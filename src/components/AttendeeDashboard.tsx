@@ -531,7 +531,7 @@ const AttendeeDashboard: React.FC<AttendeeDashboardProps> = ({ setShowSignInModa
         await updateStatistics();
         
         // Hide processing status after a delay
-        setTimeout(() => setProcessingStatus(null), 1000);
+        setTimeout(() => setProcessingStatus(null), 3000);
       } else {
         // Check if user has an existing selfie
         if (selfieUrl) {
@@ -592,44 +592,52 @@ const AttendeeDashboard: React.FC<AttendeeDashboardProps> = ({ setShowSignInModa
       
       // Get the list of images in the event
       const imagesPath = `events/shared/${event.id}/images/`;
-      const listCommand = new ListObjectsV2Command({
-        Bucket: S3_BUCKET_NAME,
-        Prefix: imagesPath,
-        MaxKeys: 1000
-      });
-      
-      const listResponse = await s3Client.send(listCommand);
-      
-      if (!listResponse.Contents || listResponse.Contents.length === 0) {
-        throw new Error('No images found in this event.');
-      }
-      
-      const imageKeys = listResponse.Contents
-        .filter(item => item.Key && /\.(jpg|jpeg|png)$/i.test(item.Key!))
-        .map(item => item.Key!);
-      
-      if (imageKeys.length === 0) {
+      let allImageKeys: string[] = [];
+      let continuationToken: string | undefined;
+
+      do {
+        const listCommand = new ListObjectsV2Command({
+          Bucket: S3_BUCKET_NAME,
+          Prefix: imagesPath,
+          MaxKeys: 1000,
+          ContinuationToken: continuationToken
+        });
+        
+        const listResponse = await s3Client.send(listCommand);
+        
+        if (listResponse.Contents) {
+          const imageKeys = listResponse.Contents
+            .filter(item => item.Key && /\.(jpg|jpeg|png)$/i.test(item.Key!))
+            .map(item => item.Key!);
+          allImageKeys.push(...imageKeys);
+        }
+        
+        continuationToken = listResponse.NextContinuationToken;
+      } while (continuationToken);
+
+      if (allImageKeys.length === 0) {
         throw new Error('No valid images found in this event.');
       }
       
       // Compare faces in larger batches with parallel processing
-      const batchSize = 30; // Increased from 10 to 25
+      const batchSize = 50; // Reduced batch size for more frequent updates
       const results: { url: string; similarity: number }[] = [];
       let processedCount = 0;
+      let matchedCount = 0;
       
-      for (let i = 0; i < imageKeys.length; i += batchSize) {
-        const batch = imageKeys.slice(i, i + batchSize);
+      for (let i = 0; i < allImageKeys.length; i += batchSize) {
+        const batch = allImageKeys.slice(i, i + batchSize);
         processedCount += batch.length;
-        setProcessingStatus(`Comparing with images... ${processedCount}/${imageKeys.length}`);
+        setProcessingStatus(`Processing images... ${processedCount}/${allImageKeys.length} (${matchedCount} matches found)`);
         
-        const batchPromises = batch.map(async (key) => {
+        const batchPromises = batch.map(async (imageKey) => {
           try {
             const compareCommand = new CompareFacesCommand({
               SourceImage: {
                 S3Object: { Bucket: S3_BUCKET_NAME, Name: selfiePath },
               },
               TargetImage: {
-                S3Object: { Bucket: S3_BUCKET_NAME, Name: key },
+                S3Object: { Bucket: S3_BUCKET_NAME, Name: imageKey },
               },
               SimilarityThreshold: 80,
               QualityFilter: "HIGH"
@@ -650,28 +658,39 @@ const AttendeeDashboard: React.FC<AttendeeDashboardProps> = ({ setShowSignInModa
               );
               
               const result = { 
-                url: `https://${S3_BUCKET_NAME}.s3.amazonaws.com/${key}`, 
+                url: `https://${S3_BUCKET_NAME}.s3.amazonaws.com/${imageKey}`, 
                 similarity: bestMatch.Similarity || 0 
               };
               
-              // Update UI immediately when a match is found
+              // Update UI immediately when a match is found with higher similarity threshold
               if (result.similarity >= 70) {
                 const newMatchingImage: MatchingImage = {
-                  imageId: key.split('/').pop() || '',
+                  imageId: imageKey.split('/').pop() || '',
                   eventId: event.id,
                   eventName: event.name,
                   imageUrl: result.url,
                   matchedDate: new Date().toISOString()
                 };
                 
-                setMatchingImages(prev => [...prev, newMatchingImage]);
+                matchedCount++;
+                // Update UI with the new match immediately
+                setMatchingImages(prev => {
+                  // Check if this image is already in the list
+                  if (!prev.some(img => img.imageUrl === newMatchingImage.imageUrl)) {
+                    return [newMatchingImage, ...prev];
+                  }
+                  return prev;
+                });
+                
+                // Update processing status with new match count
+                setProcessingStatus(`Processing images... ${processedCount}/${allImageKeys.length} (${matchedCount} matches found)`);
               }
               
               return result;
             }
             return null;
           } catch (error) {
-            console.error(`Error processing image ${key}:`, error);
+            console.error(`Error processing image ${imageKey}:`, error);
             return null;
           }
         });
@@ -1030,15 +1049,30 @@ const AttendeeDashboard: React.FC<AttendeeDashboardProps> = ({ setShowSignInModa
       
       // Get the list of images in the event
       const imagesPath = `events/shared/${eventDetails.id}/images/`;
-      const listCommand = new ListObjectsV2Command({
-        Bucket: S3_BUCKET_NAME,
-        Prefix: imagesPath,
-        MaxKeys: 1000
-      });
-      
-      const listResponse = await s3Client.send(listCommand);
-      
-      if (!listResponse.Contents || listResponse.Contents.length === 0) {
+      let allImageKeys: string[] = [];
+      let continuationToken: string | undefined;
+
+      do {
+        const listCommand = new ListObjectsV2Command({
+          Bucket: S3_BUCKET_NAME,
+          Prefix: imagesPath,
+          MaxKeys: 1000,
+          ContinuationToken: continuationToken
+        });
+        
+        const listResponse = await s3Client.send(listCommand);
+        
+        if (listResponse.Contents) {
+          const imageKeys = listResponse.Contents
+            .filter(item => item.Key && /\.(jpg|jpeg|png)$/i.test(item.Key!))
+            .map(item => item.Key!);
+          allImageKeys.push(...imageKeys);
+        }
+        
+        continuationToken = listResponse.NextContinuationToken;
+      } while (continuationToken);
+
+      if (allImageKeys.length === 0) {
         throw new Error('No images found in this event.');
       }
       
@@ -1047,16 +1081,14 @@ const AttendeeDashboard: React.FC<AttendeeDashboardProps> = ({ setShowSignInModa
       
       // Compare faces with each image
       const matchingImages: MatchingImage[] = [];
-      for (const image of listResponse.Contents) {
-        if (!image.Key) continue;
-        
-        const imageUrl = `https://${S3_BUCKET_NAME}.s3.amazonaws.com/${image.Key}`;
+      for (const imageKey of allImageKeys) {
+        const imageUrl = `https://${S3_BUCKET_NAME}.s3.amazonaws.com/${imageKey}`;
         
         try {
           const result = await compareFaces(selfieUrl, imageUrl);
           if (result) {
             matchingImages.push({
-              imageId: image.Key.split('/').pop() || '',
+              imageId: imageKey.split('/').pop() || '',
               eventId: eventDetails.id,
               eventName: eventDetails.name,
               imageUrl,
@@ -1394,7 +1426,7 @@ const AttendeeDashboard: React.FC<AttendeeDashboardProps> = ({ setShowSignInModa
                   <button
                     onClick={handleUploadAndCompare}
                     disabled={isUploading || !selfie}
-                    className={`w-full px-3 py-1.5 rounded-lg text-sm ${
+                    className={`w-full px-3 py-1.5 rounded-lg ${
                       isUploading || !selfie
                         ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
                         : 'bg-blue-600 text-white hover:bg-blue-700'
@@ -1762,7 +1794,7 @@ const AttendeeDashboard: React.FC<AttendeeDashboardProps> = ({ setShowSignInModa
 
       {/* Success Message Popup */}
       {successMessage && successMessage === 'Your selfie has been updated successfully!' && (
-        <div className="fixed left-0 right-0 top-16 sm:top-24 z-[1000] pointer-events-none">
+        <div className="fixed left-0 right-0 top-16 sm:top-24 z-[3000] pointer-events-none">
           <div className="container mx-auto px-4 max-w-md">
             <div className="bg-green-50 text-green-700 p-4 rounded-lg shadow-lg flex items-center gap-3 animate-fade-in-out">
               <div className="bg-green-100 rounded-full p-1.5 flex-shrink-0">
