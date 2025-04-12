@@ -595,7 +595,7 @@ const AttendeeDashboard: React.FC<AttendeeDashboardProps> = ({ setShowSignInModa
       const listCommand = new ListObjectsV2Command({
         Bucket: S3_BUCKET_NAME,
         Prefix: imagesPath,
-        MaxKeys: 1000
+        MaxKeys: 3000
       });
       
       const listResponse = await s3Client.send(listCommand);
@@ -1033,7 +1033,7 @@ const AttendeeDashboard: React.FC<AttendeeDashboardProps> = ({ setShowSignInModa
       const listCommand = new ListObjectsV2Command({
         Bucket: S3_BUCKET_NAME,
         Prefix: imagesPath,
-        MaxKeys: 1000
+        MaxKeys: 3000
       });
       
       const listResponse = await s3Client.send(listCommand);
@@ -1835,4 +1835,4 @@ const AttendeeDashboard: React.FC<AttendeeDashboardProps> = ({ setShowSignInModa
   );
 };
 
-export default AttendeeDashboard; 
+export default AttendeeDashboard;
