@@ -191,8 +191,6 @@ const AttendeeDashboard: React.FC<AttendeeDashboardProps> = ({ setShowSignInModa
             throw new Error(`Event with code "${eventIdFromUrl}" not found. Please check the code and try again.`);
           }
           
-          console.log('Event found:', event);
-          
           // If user is not signed in, show event details and prompt to sign in
           if (!userEmail) {
             setEventDetails({
@@ -213,78 +211,20 @@ const AttendeeDashboard: React.FC<AttendeeDashboardProps> = ({ setShowSignInModa
           const existingData = await getAttendeeImagesByUserAndEvent(userEmail, event.id);
           
           if (existingData) {
-            console.log('User already has images for this event:', existingData);
-            setProcessingStatus('Found your previous photos for this event!');
-            
-            // Add this event to the list if not already there
-            const eventExists = attendedEvents.some(e => e.eventId === event.id);
-            if (!eventExists) {
-              const newEvent: Event = {
-                eventId: event.id,
-                eventName: event.name,
-                eventDate: event.date,
-                // Use event's coverImage if available, otherwise fall back to first matched image
-                thumbnailUrl: event.coverImage || existingData.matchedImages[0] || '',
-                coverImage: event.coverImage || ''
-              };
-              setAttendedEvents(prev => [newEvent, ...prev]);
-            }
-            
-            // Add the matched images to the list if not already there
-            const newImages: MatchingImage[] = existingData.matchedImages.map((url: string) => ({
-              imageId: url.split('/').pop() || '',
-              eventId: event.id,
-              eventName: event.name,
-              imageUrl: url,
-              matchedDate: existingData.uploadedAt
-            }));
-            
-            // Check if these images are already in the state
-            const existingImageUrls = new Set(matchingImages.map(img => img.imageUrl));
-            const uniqueNewImages = newImages.filter(img => !existingImageUrls.has(img.imageUrl));
-            
-            if (uniqueNewImages.length > 0) {
-              setMatchingImages(prev => [...uniqueNewImages, ...prev]);
-            }
-            
-            // Set filter to show only this event's images
-            setSelectedEventFilter(event.id);
-            
-            // Clear event code
-            setEventCode('');
-            
-            // Set success message
-            setSuccessMessage(`Found ${existingData.matchedImages.length} photos from ${event.name}!`);
-            
-            // Update statistics
-            await updateStatistics();
-            
-            // Hide processing status after a delay
-            setTimeout(() => setProcessingStatus(null), 1000);
+            // Handle existing data case
+            handleExistingEventData(existingData, event);
           } else {
-            // Check if user has an existing selfie
-            if (selfieUrl) {
-              // User has an existing selfie, use it for comparison automatically
-              setProcessingStatus('Using your existing selfie to find photos...');
-              
-              // Start the face comparison process using the existing selfie
-              await performFaceComparisonWithExistingSelfie(userEmail, selfieUrl, event);
-              
-              // Clear event code
-              setEventCode('');
-            } else {
-              // No existing data or selfie, show the event details and selfie upload form
-              setEventDetails({
-                id: event.id,
-                name: event.name,
-                date: event.date
-              });
-              setProcessingStatus(null);
-            }
+            // Show event details for new upload
+            setEventDetails({
+              id: event.id,
+              name: event.name,
+              date: event.date
+            });
           }
         } catch (error: any) {
           console.error('Error finding event:', error);
           setError(error.message || 'Failed to find event. Please try again.');
+        } finally {
           setProcessingStatus(null);
         }
       };
@@ -650,33 +590,21 @@ const AttendeeDashboard: React.FC<AttendeeDashboardProps> = ({ setShowSignInModa
         throw new Error('Could not determine S3 path for the existing selfie');
       }
       
-      // Get all images in the event using pagination
+      // Get the list of images in the event
       const imagesPath = `events/shared/${event.id}/images/`;
-      let allContents: any[] = [];
-      let continuationToken: string | undefined;
-
-      do {
-        const listCommand = new ListObjectsV2Command({
-          Bucket: S3_BUCKET_NAME,
-          Prefix: imagesPath,
-          MaxKeys: 4000,
-          ContinuationToken: continuationToken
-        });
-        
-        const listResponse = await s3Client.send(listCommand);
-        
-        if (listResponse.Contents) {
-          allContents = [...allContents, ...listResponse.Contents];
-        }
-        
-        continuationToken = listResponse.NextContinuationToken;
-      } while (continuationToken);
-
-      if (allContents.length === 0) {
+      const listCommand = new ListObjectsV2Command({
+        Bucket: S3_BUCKET_NAME,
+        Prefix: imagesPath,
+        MaxKeys: 1000
+      });
+      
+      const listResponse = await s3Client.send(listCommand);
+      
+      if (!listResponse.Contents || listResponse.Contents.length === 0) {
         throw new Error('No images found in this event.');
       }
       
-      const imageKeys = allContents
+      const imageKeys = listResponse.Contents
         .filter(item => item.Key && /\.(jpg|jpeg|png)$/i.test(item.Key!))
         .map(item => item.Key!);
       
@@ -685,7 +613,7 @@ const AttendeeDashboard: React.FC<AttendeeDashboardProps> = ({ setShowSignInModa
       }
       
       // Compare faces in larger batches with parallel processing
-      const batchSize = 200; // Increased from 10 to 25
+      const batchSize = 30; // Increased from 10 to 25
       const results: { url: string; similarity: number }[] = [];
       let processedCount = 0;
       
@@ -1100,50 +1028,38 @@ const AttendeeDashboard: React.FC<AttendeeDashboardProps> = ({ setShowSignInModa
       // After successful upload, start face comparison
       setProcessingStatus('Comparing with event images...');
       
-      // Get all images in the event using pagination
+      // Get the list of images in the event
       const imagesPath = `events/shared/${eventDetails.id}/images/`;
-      let allContents: any[] = [];
-      let continuationToken: string | undefined;
-
-      do {
-        const listCommand = new ListObjectsV2Command({
-          Bucket: S3_BUCKET_NAME,
-          Prefix: imagesPath,
-          MaxKeys: 4000,
-          ContinuationToken: continuationToken
-        });
-        
-        const listResponse = await s3Client.send(listCommand);
-        
-        if (listResponse.Contents) {
-          allContents = [...allContents, ...listResponse.Contents];
-        }
-        
-        continuationToken = listResponse.NextContinuationToken;
-      } while (continuationToken);
-
-      if (allContents.length === 0) {
+      const listCommand = new ListObjectsV2Command({
+        Bucket: S3_BUCKET_NAME,
+        Prefix: imagesPath,
+        MaxKeys: 1000
+      });
+      
+      const listResponse = await s3Client.send(listCommand);
+      
+      if (!listResponse.Contents || listResponse.Contents.length === 0) {
         throw new Error('No images found in this event.');
       }
-      
-      const imageKeys = allContents
-        .filter(item => item.Key && /\.(jpg|jpeg|png)$/i.test(item.Key!))
-        .map(item => item.Key!);
       
       // Get the uploaded selfie URL
       const selfieUrl = `https://${S3_BUCKET_NAME}.s3.amazonaws.com/${selfiePath}`;
       
       // Compare faces with each image
       const matchingImages: MatchingImage[] = [];
-      for (const image of imageKeys) {
+      for (const image of listResponse.Contents) {
+        if (!image.Key) continue;
+        
+        const imageUrl = `https://${S3_BUCKET_NAME}.s3.amazonaws.com/${image.Key}`;
+        
         try {
-          const result = await compareFaces(selfieUrl, `https://${S3_BUCKET_NAME}.s3.amazonaws.com/${image}`);
+          const result = await compareFaces(selfieUrl, imageUrl);
           if (result) {
             matchingImages.push({
-              imageId: image.split('/').pop() || '',
+              imageId: image.Key.split('/').pop() || '',
               eventId: eventDetails.id,
               eventName: eventDetails.name,
-              imageUrl: `https://${S3_BUCKET_NAME}.s3.amazonaws.com/${image}`,
+              imageUrl,
               matchedDate: new Date().toISOString()
             });
           }
@@ -1414,7 +1330,7 @@ const AttendeeDashboard: React.FC<AttendeeDashboardProps> = ({ setShowSignInModa
             
             {processingStatus && (
               <div className="bg-blue-50 text-blue-600 p-2 rounded-lg mb-3 text-sm flex items-center">
-                <div className="animate-spin rounded-full h-3 w-3 border-t-2 border-b-2 border-blue-600 mr-1"></div>
+                <div className="animate-spin rounded-full h-3 w-3 border-t-2 border-b-2 border-blue-600 mr-2"></div>
                 {processingStatus}
               </div>
             )}
@@ -1478,7 +1394,7 @@ const AttendeeDashboard: React.FC<AttendeeDashboardProps> = ({ setShowSignInModa
                   <button
                     onClick={handleUploadAndCompare}
                     disabled={isUploading || !selfie}
-                    className={`w-full px-3 py-1.5 rounded-lg ${
+                    className={`w-full px-3 py-1.5 rounded-lg text-sm ${
                       isUploading || !selfie
                         ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
                         : 'bg-blue-600 text-white hover:bg-blue-700'
