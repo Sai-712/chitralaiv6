@@ -144,7 +144,7 @@ const FAQ = () => {
           </div>
           <div className="w-64 h-28 relative">
             <img
-              src="https://static.techgraph.co/wp-content/uploads/2023/10/Aws-startup.png"
+              src="https://res.cloudinary.com/secretsaas/image/upload/ar_1.0,b_white,c_pad,dpr_2.0,f_auto,h_128,q_auto:best/v1/production/5luo0onxm97j1kd6wuta4c8n3m3t"
               alt="AWS for Startup"
               className="w-full h-full object-contain"
             />
