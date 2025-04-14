@@ -603,13 +603,13 @@ const Navbar: React.FC<NavbarProps> = ({
               </div>
               <p className="text-sm text-gray-500 mb-4">Fill this form or</p>
               <div className="flex gap-4 mb-6">
-                <a href="https://wa.me/91897772553" className="flex items-center justify-center p-2 rounded-full bg-green-500 text-white hover:bg-green-600">
+                <a href="https://wa.me/+91-8977725553" className="flex items-center justify-center p-2 rounded-full bg-green-500 text-white hover:bg-green-600">
                   <MessageSquare className="h-5 w-5" />
                 </a>
-                <a href="mailto:Contact@chitralai.in" className="flex items-center justify-center p-2 rounded-full bg-blue-500 text-white hover:bg-blue-600">
+                <a href="mailto:chitralai.in@gmail.com" className="flex items-center justify-center p-2 rounded-full bg-blue-500 text-white hover:bg-blue-600">
                   <Mail className="h-5 w-5" />
                 </a>
-                <a href="tel:+91897772553" className="flex items-center justify-center p-2 rounded-full bg-purple-500 text-white hover:bg-purple-600">
+                <a href="tel:+918977725553" className="flex items-center justify-center p-2 rounded-full bg-purple-500 text-white hover:bg-purple-600">
                   <Phone className="h-5 w-5" />
                 </a>
               </div>
