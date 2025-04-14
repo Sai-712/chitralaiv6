@@ -109,6 +109,48 @@ const FAQ = () => {
           </div>
         </motion.div>
       </div>
+
+      {/* Partners Section */}
+      <div className="mt-16 mx-auto max-w-7xl">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
+          className="text-center mb-8"
+        >
+          <h3 className="text-xl sm:text-2xl font-semibold text-gray-900">
+            Our Partners
+          </h3>
+        </motion.div>
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.2 }}
+          className="flex flex-wrap justify-center items-center gap-12 sm:gap-16"
+        >
+          <div className="w-64 h-28 relative">
+            <img
+              src="https://remoters.net/wp-content/uploads/2020/06/draper-startup-house.png"
+              alt="Draper"
+              className="w-full h-full object-contain"
+            />
+          </div>
+          <div className="w-64 h-28 relative">
+            <img
+              src="https://upload.wikimedia.org/wikipedia/commons/4/40/T-Hub_Logo-PNG.png"
+              alt="T-Hub"
+              className="w-full h-full object-contain"
+            />
+          </div>
+          <div className="w-64 h-28 relative">
+            <img
+              src="https://static.techgraph.co/wp-content/uploads/2023/10/Aws-startup.png"
+              alt="AWS for Startup"
+              className="w-full h-full object-contain"
+            />
+          </div>
+        </motion.div>
+      </div>
     </div>
   );
 };
