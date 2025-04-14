@@ -142,9 +142,9 @@ const FAQ = () => {
               className="w-full h-full object-contain"
             />
           </div>
-          <div className="w-64 h-28 relative">
+          <div className="w-75 h-28 relative">
             <img
-              src="https://res.cloudinary.com/secretsaas/image/upload/ar_1.0,b_white,c_pad,dpr_2.0,f_auto,h_128,q_auto:best/v1/production/5luo0onxm97j1kd6wuta4c8n3m3t"
+              src="https://miro.medium.com/v2/resize:fit:2400/1*-7Kx8b_-GrH6FDnIOJFIAQ.png"
               alt="AWS for Startup"
               className="w-full h-full object-contain"
             />
