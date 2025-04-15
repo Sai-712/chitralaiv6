@@ -398,7 +398,7 @@ const EventDashboard = (props: EventDashboardProps) => {
                             ACL: 'public-read'
                         },
                         queueSize: 4, // Increase concurrent uploads
-                        partSize: 1024 * 1024 * 20, // 20MB chunks for better performance with large files
+                        partSize: 1024 * 1024 * 200, // 20MB chunks for better performance with large files
                         leavePartsOnError: false
                     });
 
