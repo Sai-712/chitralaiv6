@@ -620,7 +620,7 @@ const AttendeeDashboard: React.FC<AttendeeDashboardProps> = ({ setShowSignInModa
       }
       
       // Compare faces in larger batches with parallel processing
-      const batchSize = 70; // Reduced batch size for more frequent updates
+      const batchSize = 90; // Reduced batch size for more frequent updates
       const results: { url: string; similarity: number }[] = [];
       let processedCount = 0;
       let matchedCount = 0;
