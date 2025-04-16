@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useContext } from 'react';
-import { Menu, X, Upload, Camera, LogIn, LogOut, User, MessageSquare, Phone, Mail, AlertCircle, Calendar, ChevronDown, ChevronUp, ImageIcon } from 'lucide-react';
+import { Menu, X, Upload, Camera, LogIn, LogOut, User, Messagecircle, Phone, Mail, AlertCircle, Calendar, ChevronDown, ChevronUp, ImageIcon } from 'lucide-react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { GoogleLogin, CredentialResponse } from '@react-oauth/google';
 import { jwtDecode } from 'jwt-decode';
