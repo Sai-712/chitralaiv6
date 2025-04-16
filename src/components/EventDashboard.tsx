@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useContext } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Camera, Image, Video, Users, Plus, X, Trash2, Copy, RefreshCw } from 'lucide-react';
+import { Camera, Image, Plus, X, Trash2, Copy, Edit2, Check } from 'lucide-react';
 import { 
     storeEventData, 
     getEventStatistics, 
@@ -9,7 +9,8 @@ import {
     deleteEvent, 
     getEventsByOrganizerId,
     getEventsByUserId,
-    getEventById
+    getEventById,
+    updateEventName
 } from '../config/eventStorage';
 import { s3Client, S3_BUCKET_NAME } from '../config/aws';
 import { Upload } from '@aws-sdk/lib-storage';
@@ -108,6 +109,8 @@ const EventDashboard = (props: EventDashboardProps) => {
     const [showAllEvents, setShowAllEvents] = useState(true);
     const [copiedEventId, setCopiedEventId] = useState<string | null>(null);
     const [refreshInterval, setRefreshInterval] = useState<NodeJS.Timeout | null>(null);
+    const [editingEventId, setEditingEventId] = useState<string | null>(null);
+    const [editedEventName, setEditedEventName] = useState<string>('');
 
     useEffect(() => {
         loadEvents();
@@ -532,6 +535,40 @@ const EventDashboard = (props: EventDashboardProps) => {
         setTimeout(() => setCopiedEventId(null), 2000);
     };
 
+    const handleEditClick = (event: EventData) => {
+        setEditingEventId(event.id);
+        setEditedEventName(event.name);
+    };
+
+    const handleSaveEventName = async (eventId: string) => {
+        try {
+            if (!editedEventName.trim()) {
+                return; // Don't save empty names
+            }
+            
+            await updateEventName(eventId, editedEventName.trim());
+            
+            // Update the events list with the new name
+            setEvents(events.map(event => 
+                event.id === eventId 
+                    ? { ...event, name: editedEventName.trim() } 
+                    : event
+            ));
+            
+            // Reset editing state
+            setEditingEventId(null);
+            setEditedEventName('');
+        } catch (error) {
+            console.error('Error updating event name:', error);
+            alert('Failed to update event name. Please try again.');
+        }
+    };
+
+    const handleCancelEdit = () => {
+        setEditingEventId(null);
+        setEditedEventName('');
+    };
+
     return (
         <div className={`relative bg-blue-45 flex flex-col pt-16 sm:pt-20 ${events.length === 0 ? 'h-[calc(100vh-70px)]' : 'min-h-screen'}`}>
             <div className="relative z-10 container mx-auto px-4 py-4 sm:py-10 flex-grow">
@@ -697,7 +734,44 @@ const EventDashboard = (props: EventDashboardProps) => {
                                         )}
                                     </div>
                                     <div className="p-2 sm:p-6">
-                                        <h3 className="text-base sm:text-2xl font-semibold text-blue-800 mb-1 sm:mb-3">{event.name}</h3>
+                                        <div className="flex items-center justify-between mb-1 sm:mb-3">
+                                            {editingEventId === event.id ? (
+                                                <div className="flex items-center space-x-2">
+                                                    <input
+                                                        type="text"
+                                                        value={editedEventName}
+                                                        onChange={(e) => setEditedEventName(e.target.value)}
+                                                        className="text-base sm:text-2xl font-semibold text-blue-800 border-b-2 border-blue-500 focus:outline-none bg-transparent"
+                                                        autoFocus
+                                                    />
+                                                    <button
+                                                        onClick={() => handleSaveEventName(event.id)}
+                                                        className="text-green-600 hover:text-green-700"
+                                                        title="Save"
+                                                    >
+                                                        <Check className="w-5 h-5" />
+                                                    </button>
+                                                    <button
+                                                        onClick={handleCancelEdit}
+                                                        className="text-red-600 hover:text-red-700"
+                                                        title="Cancel"
+                                                    >
+                                                        <X className="w-5 h-5" />
+                                                    </button>
+                                                </div>
+                                            ) : (
+                                                <div className="flex items-center space-x-2">
+                                                    <h3 className="text-base sm:text-2xl font-semibold text-blue-800">{event.name}</h3>
+                                                    <button
+                                                        onClick={() => handleEditClick(event)}
+                                                        className="text-blue-600 hover:text-blue-700"
+                                                        title="Edit event name"
+                                                    >
+                                                        <Edit2 className="w-4 h-4" />
+                                                    </button>
+                                                </div>
+                                            )}
+                                        </div>
                                         <div className="flex items-center mb-1 sm:mb-3">
                                             <span className="text-sm sm:text-base font-medium text-gray-700 mr-2">Event Code:</span>
                                             <div className="bg-blue-100 px-2 py-1 rounded-md flex items-center">
