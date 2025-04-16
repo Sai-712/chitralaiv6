@@ -257,6 +257,33 @@ export const updateEventData = async (
   }
 };
 
+// Update event name
+export const updateEventName = async (eventId: string, newName: string): Promise<boolean> => {
+  try {
+    const command = new UpdateCommand({
+      TableName: EVENTS_TABLE,
+      Key: {
+        eventId: eventId
+      },
+      UpdateExpression: 'SET #name = :name, updatedAt = :updatedAt',
+      ExpressionAttributeNames: {
+        '#name': 'name'
+      },
+      ExpressionAttributeValues: {
+        ':name': newName,
+        ':updatedAt': new Date().toISOString()
+      }
+    });
+
+    await docClient.send(command);
+    console.log("Event name updated successfully in DynamoDB");
+    return true;
+  } catch (error) {
+    console.error("Error updating event name in DynamoDB:", error);
+    return false;
+  }
+};
+
 // Delete an event
 export const deleteEvent = async (eventId: string, userEmail: string): Promise<boolean> => {
   try {
