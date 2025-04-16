@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useContext } from 'react';
-import { Menu, X, Upload, Camera, LogIn, LogOut, User, Messagecircle, Phone, Mail, AlertCircle, Calendar, ChevronDown, ChevronUp, ImageIcon } from 'lucide-react';
+import { Menu, X, Upload, Camera, LogIn, LogOut, User, MessageSquare, Phone, Mail, AlertCircle, Calendar, ChevronDown, ChevronUp, ImageIcon } from 'lucide-react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { GoogleLogin, CredentialResponse } from '@react-oauth/google';
 import { jwtDecode } from 'jwt-decode';
@@ -604,7 +604,7 @@ const Navbar: React.FC<NavbarProps> = ({
               <p className="text-sm text-gray-500 mb-4">Fill this form or</p>
               <div className="flex gap-4 mb-6">
                 <a href="https://wa.me/+918977725553" className="flex items-center justify-center p-2 rounded-full bg-green-500 text-white hover:bg-green-600">
-                  <MessageCircle className="h-5 w-5" />
+                  <MessageSquare className="h-5 w-5" />
                 </a>
                 <a href="mailto:chitralai.in@gmail.com" className="flex items-center justify-center p-2 rounded-full bg-blue-500 text-white hover:bg-blue-600">
                   <Mail className="h-5 w-5" />
